@@ -11,6 +11,7 @@ Route::middleware(array_filter([
     EnsurePasswordChange::class,
 ]))->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
+    Route::livewire('accounts', 'pages::accounts')->name('accounts.index');
 });
 
 require __DIR__.'/settings.php';

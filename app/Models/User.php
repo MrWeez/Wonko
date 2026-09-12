@@ -7,6 +7,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -50,6 +51,22 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'locked_at' => 'datetime',
             'must_change_password' => 'boolean',
         ];
+    }
+
+    /**
+     * @return HasMany<Bank, $this>
+     */
+    public function banks(): HasMany
+    {
+        return $this->hasMany(Bank::class);
+    }
+
+    /**
+     * @return HasMany<Account, $this>
+     */
+    public function accounts(): HasMany
+    {
+        return $this->hasMany(Account::class);
     }
 
     /**
