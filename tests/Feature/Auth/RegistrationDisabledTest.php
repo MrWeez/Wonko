@@ -1,9 +1,13 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Env;
 
 test('registration routes are not available when registration is disabled', function () {
-    $_SERVER['REGISTRATION_ENABLED'] = '';
+    $_ENV['REGISTRATION_ENABLED'] = 'false';
+    $_SERVER['REGISTRATION_ENABLED'] = 'false';
+    putenv('REGISTRATION_ENABLED=false');
+    Env::getRepository()->set('REGISTRATION_ENABLED', 'false');
 
     try {
         $this->refreshApplication();
@@ -14,12 +18,18 @@ test('registration routes are not available when registration is disabled', func
         $this->get('/register')->assertNotFound();
         $this->post('/register')->assertNotFound();
     } finally {
-        unset($_SERVER['REGISTRATION_ENABLED']);
+        unset($_ENV['REGISTRATION_ENABLED'], $_SERVER['REGISTRATION_ENABLED']);
+        putenv('REGISTRATION_ENABLED');
+        Env::getRepository()->clear('REGISTRATION_ENABLED');
     }
 });
 
 test('existing users can still log in when registration is disabled', function () {
-    $_SERVER['REGISTRATION_ENABLED'] = '';
+    $_ENV['REGISTRATION_ENABLED'] = 'false';
+    $_SERVER['REGISTRATION_ENABLED'] = 'false';
+    putenv('REGISTRATION_ENABLED=false');
+    Env::getRepository()->set('REGISTRATION_ENABLED', 'false');
+
     try {
         $this->refreshApplication();
         $this->artisan('migrate:fresh');
@@ -35,7 +45,9 @@ test('existing users can still log in when registration is disabled', function (
 
         $this->assertAuthenticated();
     } finally {
-        unset($_SERVER['REGISTRATION_ENABLED']);
+        unset($_ENV['REGISTRATION_ENABLED'], $_SERVER['REGISTRATION_ENABLED']);
+        putenv('REGISTRATION_ENABLED');
+        Env::getRepository()->clear('REGISTRATION_ENABLED');
     }
 });
 

@@ -161,9 +161,9 @@ return [
     */
 
     'features' => array_values(array_filter([
-        config('auth.registration_enabled') ? Features::registration() : null,
+        env('REGISTRATION_ENABLED', true) ? Features::registration() : null,
         Features::resetPasswords(),
-        config('auth.email_verification_required') ? Features::emailVerification() : null,
+        env('EMAIL_VERIFICATION_REQUIRED', true) ? Features::emailVerification() : null,
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => true,
