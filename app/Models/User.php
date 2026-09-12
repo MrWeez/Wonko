@@ -28,12 +28,13 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $locked_at
  * @property bool $must_change_password
  * @property array<string, bool>|null $notification_preferences
+ * @property array<string, mixed>|null $notification_channel_config
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
 #[Fillable(['name', 'email', 'password', 'email_verified_at', 'notification_preferences'])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'notification_channel_config'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
@@ -52,6 +53,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'locked_at' => 'datetime',
             'must_change_password' => 'boolean',
             'notification_preferences' => 'array',
+            'notification_channel_config' => 'encrypted:array',
         ];
     }
 
@@ -81,6 +83,27 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     {
         $this->forceFill([
             'notification_preferences' => array_replace($this->notificationPreferences(), $preferences),
+        ])->save();
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    public function notificationChannelConfigurations(): array
+    {
+        return $this->notification_channel_config ?? [];
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $configurations
+     */
+    public function setNotificationChannelConfigurations(array $configurations): void
+    {
+        $this->forceFill([
+            'notification_channel_config' => array_replace_recursive(
+                $this->notificationChannelConfigurations(),
+                $configurations,
+            ),
         ])->save();
     }
 

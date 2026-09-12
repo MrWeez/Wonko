@@ -60,3 +60,27 @@ test('auto-post does not create an in-app notification when disabled', function 
 
     expect(DatabaseNotification::query()->count())->toBe(0);
 });
+
+test('channel credentials are encrypted at rest and can be updated', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::settings.notifications')
+        ->set('webhook', true)
+        ->set('webhookUrl', 'https://example.test/wonko')
+        ->set('webhookSecret', 'secret-value')
+        ->set('telegramChatId', '-100123')
+        ->set('telegramMessageThreadId', '42')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $stored = $user->fresh();
+
+    $configurations = $stored->notificationChannelConfigurations();
+
+    expect($configurations['webhook']['url'])->toBe('https://example.test/wonko')
+        ->and($configurations['webhook']['secret'])->toBe('secret-value')
+        ->and($configurations['telegram']['chat_id'])->toBe('-100123')
+        ->and($configurations['telegram']['message_thread_id'])->toBe(42);
+    expect($stored->getRawOriginal('notification_channel_config'))->not->toContain('secret-value');
+});
