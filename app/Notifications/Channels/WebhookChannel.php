@@ -31,7 +31,9 @@ class WebhookChannel
             }
 
             $request->post($url, $notification->toWebhook($notifiable))->throw();
+            $notifiable->clearNotificationChannelFailure('webhook');
         } catch (Throwable $exception) {
+            $notifiable->recordNotificationChannelFailure('webhook', $exception->getMessage());
             Log::warning('Notification webhook delivery failed.', [
                 'user_id' => $notifiable->getKey(),
                 'url' => $url,

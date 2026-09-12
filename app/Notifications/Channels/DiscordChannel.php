@@ -28,7 +28,9 @@ class DiscordChannel
                 ->timeout(5)
                 ->post($url, $notification->toDiscord($notifiable))
                 ->throw();
+            $notifiable->clearNotificationChannelFailure('discord');
         } catch (Throwable $exception) {
+            $notifiable->recordNotificationChannelFailure('discord', $exception->getMessage());
             Log::warning('Notification Discord delivery failed.', [
                 'user_id' => $notifiable->getKey(),
                 'url' => $url,

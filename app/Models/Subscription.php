@@ -14,8 +14,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property SubscriptionPeriodUnit $period_unit
  * @property int $period_count
+ * @property array<string, bool>|null $notification_channel_overrides
+ * @property CarbonImmutable|null $notification_sent_for_due_date
  */
-#[Fillable(['account_id', 'category_id', 'name', 'currency', 'amount', 'period_count', 'period_unit', 'next_due_date', 'auto_post', 'active'])]
+#[Fillable(['account_id', 'category_id', 'name', 'currency', 'amount', 'period_count', 'period_unit', 'next_due_date', 'auto_post', 'active', 'notification_channel_overrides'])]
 class Subscription extends UserOwnedModel
 {
     /** @use HasFactory<SubscriptionFactory> */
@@ -33,6 +35,8 @@ class Subscription extends UserOwnedModel
             'next_due_date' => 'date',
             'auto_post' => 'boolean',
             'active' => 'boolean',
+            'notification_channel_overrides' => 'array',
+            'notification_sent_for_due_date' => 'date',
         ];
     }
 
@@ -70,5 +74,15 @@ class Subscription extends UserOwnedModel
             SubscriptionPeriodUnit::Month => $date->addMonths($this->period_count),
             SubscriptionPeriodUnit::Year => $date->addYears($this->period_count),
         };
+    }
+
+    public function notificationSentFor(CarbonInterface $date): bool
+    {
+        return $this->notification_sent_for_due_date?->isSameDay($date) ?? false;
+    }
+
+    public function markNotificationSent(CarbonInterface $date): void
+    {
+        $this->forceFill(['notification_sent_for_due_date' => $date])->save();
     }
 }

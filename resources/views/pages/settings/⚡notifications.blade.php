@@ -28,6 +28,8 @@ new #[Title('Notification settings')] class extends Component {
 
     public string $telegramMessageThreadId = '';
 
+    public int $notificationDaysBefore = 0;
+
     public function mount(): void
     {
         $preferences = Auth::user()->notificationPreferences();
@@ -37,6 +39,7 @@ new #[Title('Notification settings')] class extends Component {
         $this->webhook = $preferences['webhook'];
         $this->discord = $preferences['discord'];
         $this->telegram = $preferences['telegram'];
+        $this->notificationDaysBefore = Auth::user()->notificationDaysBefore();
 
         $configurations = Auth::user()->notificationChannelConfigurations();
         $this->webhookUrl = $configurations['webhook']['url'] ?? '';
@@ -53,6 +56,7 @@ new #[Title('Notification settings')] class extends Component {
             'telegramBotToken' => ['nullable', 'string', 'max:255'],
             'telegramChatId' => ['nullable', 'string', 'max:255'],
             'telegramMessageThreadId' => ['nullable', 'integer', 'min:1'],
+            'notificationDaysBefore' => ['required', 'integer', 'min:0', 'max:365'],
         ]);
 
         $configurations = Auth::user()->notificationChannelConfigurations();
@@ -73,6 +77,7 @@ new #[Title('Notification settings')] class extends Component {
             'discord' => $this->discord,
             'telegram' => $this->telegram,
         ]);
+        Auth::user()->setNotificationDaysBefore($this->notificationDaysBefore);
         Auth::user()->setNotificationChannelConfigurations([
             'webhook' => ['url' => $this->webhookUrl, 'secret' => $webhookSecret],
             'discord' => ['url' => $discordUrl],
@@ -100,12 +105,20 @@ new #[Title('Notification settings')] class extends Component {
             <flux:checkbox wire:model="discord" :label="__('Discord webhook')" />
             <flux:checkbox wire:model="telegram" :label="__('Telegram')" />
 
+            <flux:input wire:model="notificationDaysBefore" :label="__('Notify before due date (days)')" type="number" min="0" max="365" />
+
             <flux:input wire:model="webhookUrl" :label="__('Generic webhook URL')" type="url" placeholder="https://example.test/hooks/wonko" />
             <flux:input wire:model="webhookSecret" :label="__('Generic webhook secret')" type="password" placeholder="{{ __('Leave blank to keep current secret') }}" />
             <flux:input wire:model="discordUrl" :label="__('Discord webhook URL')" type="url" placeholder="{{ __('Leave blank to keep current URL') }}" />
             <flux:input wire:model="telegramBotToken" :label="__('Telegram bot token')" type="password" placeholder="{{ __('Leave blank to keep current token') }}" />
             <flux:input wire:model="telegramChatId" :label="__('Telegram chat ID')" />
             <flux:input wire:model="telegramMessageThreadId" :label="__('Telegram message thread ID')" type="number" min="1" placeholder="{{ __('Optional topic ID') }}" />
+
+            @foreach (Auth::user()->notificationChannelFailureStatus() as $channel => $status)
+                <flux:callout variant="danger" :heading="__(ucfirst($channel).' delivery failed')">
+                    {{ $status['failed_at'] ?? '' }}: {{ $status['message'] ?? __('Unknown error') }}
+                </flux:callout>
+            @endforeach
 
             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
         </form>

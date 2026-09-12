@@ -33,6 +33,17 @@ new #[Title('Subscriptions')] class extends Component {
 
     public bool $subscriptionActive = true;
 
+    /**
+     * @var array<string, string>
+     */
+    public array $subscriptionNotificationChannels = [
+        'database' => 'global',
+        'email' => 'global',
+        'webhook' => 'global',
+        'discord' => 'global',
+        'telegram' => 'global',
+    ];
+
     public ?int $editingSubscriptionId = null;
 
     public ?int $occurrenceSubscriptionId = null;
@@ -126,7 +137,15 @@ new #[Title('Subscriptions')] class extends Component {
             'subscriptionNextDueDate' => ['required', 'date'],
             'subscriptionAutoPost' => ['boolean'],
             'subscriptionActive' => ['boolean'],
+            'subscriptionNotificationChannels.*' => ['required', Rule::in(['global', 'enabled', 'disabled'])],
         ]);
+
+        $notificationChannelOverrides = [];
+        foreach ($validated['subscriptionNotificationChannels'] as $channel => $value) {
+            if ($value !== 'global') {
+                $notificationChannelOverrides[$channel] = $value === 'enabled';
+            }
+        }
 
         $subscription = $this->editingSubscriptionId
             ? Subscription::query()->findOrFail($this->editingSubscriptionId)
@@ -143,6 +162,7 @@ new #[Title('Subscriptions')] class extends Component {
             'next_due_date' => $validated['subscriptionNextDueDate'],
             'auto_post' => $validated['subscriptionAutoPost'],
             'active' => $validated['subscriptionActive'],
+            'notification_channel_overrides' => $notificationChannelOverrides ?: null,
         ]);
         $subscription->save();
 
@@ -167,6 +187,13 @@ new #[Title('Subscriptions')] class extends Component {
         $this->subscriptionNextDueDate = $subscription->next_due_date->toDateString();
         $this->subscriptionAutoPost = $subscription->auto_post;
         $this->subscriptionActive = $subscription->active;
+        $this->subscriptionNotificationChannels = array_replace(
+            $this->subscriptionNotificationChannels,
+            array_map(
+                fn (bool $enabled): string => $enabled ? 'enabled' : 'disabled',
+                $subscription->notification_channel_overrides ?? [],
+            ),
+        );
     }
 
     public function deleteSubscription(int $subscriptionId): void
@@ -252,6 +279,13 @@ new #[Title('Subscriptions')] class extends Component {
         $this->subscriptionNextDueDate = now()->toDateString();
         $this->subscriptionAutoPost = false;
         $this->subscriptionActive = true;
+        $this->subscriptionNotificationChannels = [
+            'database' => 'global',
+            'email' => 'global',
+            'webhook' => 'global',
+            'discord' => 'global',
+            'telegram' => 'global',
+        ];
         $this->resetValidation();
     }
 
@@ -301,6 +335,13 @@ new #[Title('Subscriptions')] class extends Component {
             <flux:input wire:model="subscriptionNextDueDate" :label="__('Next due date')" type="date" />
             <flux:checkbox wire:model="subscriptionAutoPost" :label="__('Post automatically when due')" />
             <flux:checkbox wire:model="subscriptionActive" :label="__('Active')" />
+            @foreach ($subscriptionNotificationChannels as $channel => $value)
+                <flux:select wire:model="subscriptionNotificationChannels.{{ $channel }}" :label="__(ucfirst($channel).' notifications')">
+                    <flux:select.option value="global">{{ __('Use global setting') }}</flux:select.option>
+                    <flux:select.option value="enabled">{{ __('Always enable') }}</flux:select.option>
+                    <flux:select.option value="disabled">{{ __('Always disable') }}</flux:select.option>
+                </flux:select>
+            @endforeach
             <div class="flex items-end">
                 <flux:button type="submit" variant="primary">{{ $editingSubscriptionId ? __('Save changes') : __('Add subscription') }}</flux:button>
             </div>

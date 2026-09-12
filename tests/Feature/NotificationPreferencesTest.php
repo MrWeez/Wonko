@@ -31,6 +31,27 @@ test('users can update notification channel preferences', function () {
     ]);
 });
 
+test('users can configure notification timing and channel failure status is encrypted', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::settings.notifications')
+        ->set('notificationDaysBefore', 3)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $user->fresh()->recordNotificationChannelFailure('telegram', 'Bot API unavailable');
+    $stored = $user->fresh();
+
+    expect($stored->notificationDaysBefore())->toBe(3)
+        ->and($stored->notificationChannelFailureStatus()['telegram']['message'])->toBe('Bot API unavailable')
+        ->and($stored->getRawOriginal('notification_channel_status'))->not->toContain('Bot API unavailable');
+
+    $stored->clearNotificationChannelFailure('telegram');
+
+    expect($stored->fresh()->notificationChannelFailureStatus())->toBe([]);
+});
+
 test('auto-post creates an in-app notification when the database channel is enabled', function () {
     $user = User::factory()->create();
     $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
@@ -116,6 +137,30 @@ test('auto-post delivers the webhook payload with its configured secret', functi
     });
 });
 
+test('failed webhook delivery records a channel failure status', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://example.test/wonko' => Http::response(['error' => 'unavailable'], 500),
+    ]);
+
+    $user = User::factory()->create();
+    $user->setNotificationPreferences(['database' => false, 'webhook' => true]);
+    $user->setNotificationChannelConfigurations([
+        'webhook' => ['url' => 'https://example.test/wonko'],
+    ]);
+
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    Subscription::factory()->forAccount($account)->create([
+        'next_due_date' => now()->subDay()->toDateString(),
+        'auto_post' => true,
+    ]);
+
+    $this->artisan('subscriptions:post-due')->assertExitCode(0);
+
+    expect($user->fresh()->notificationChannelFailureStatus())
+        ->toHaveKey('webhook');
+});
+
 test('notification includes email when the email channel is enabled', function () {
     $user = User::factory()->create();
     $user->setNotificationPreferences(['database' => false, 'email' => true]);
@@ -195,4 +240,35 @@ test('auto-post delivers a Discord embed to its configured webhook', function ()
             && $request['embeds'][0]['title'] === 'Subscription due: Discord plan'
             && str_ends_with($request['embeds'][0]['fields'][0]['value'], ' EUR');
     });
+});
+
+test('upcoming subscription notifications use timing and are idempotent', function () {
+    $user = User::factory()->create();
+    $user->setNotificationDaysBefore(2);
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    $subscription = Subscription::factory()->forAccount($account)->create([
+        'next_due_date' => now()->addDay()->toDateString(),
+        'auto_post' => false,
+    ]);
+
+    $this->artisan('subscriptions:notify-upcoming')->assertExitCode(0);
+
+    expect(DatabaseNotification::query()->count())->toBe(1)
+        ->and($subscription->fresh()->notification_sent_for_due_date->toDateString())
+        ->toBe($subscription->next_due_date->toDateString());
+
+    $this->artisan('subscriptions:notify-upcoming')->assertExitCode(0);
+
+    expect(DatabaseNotification::query()->count())->toBe(1);
+});
+
+test('subscription channel overrides take precedence over global preferences', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    $subscription = Subscription::factory()->forAccount($account)->create([
+        'notification_channel_overrides' => ['database' => false],
+    ]);
+
+    expect((new SubscriptionDueNotification($subscription))->via($user))->not->toContain('database');
 });

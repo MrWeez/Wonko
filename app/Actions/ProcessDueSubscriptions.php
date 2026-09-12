@@ -62,7 +62,10 @@ class ProcessDueSubscriptions
                                 'notes' => 'Automatically posted',
                             ])->save();
 
-                            $subscription->user->notify(new SubscriptionDueNotification($subscription, $occurrence));
+                            if (! $subscription->notificationSentFor($dueDate)) {
+                                $subscription->user->notify(new SubscriptionDueNotification($subscription, $occurrence));
+                                $subscription->markNotificationSent($dueDate);
+                            }
 
                             $processed++;
                         }

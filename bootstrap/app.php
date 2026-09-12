@@ -18,6 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->hourly()
             ->withoutOverlapping(30)
             ->onOneServer();
+
+        $schedule->command('subscriptions:notify-upcoming')
+            ->daily()
+            ->withoutOverlapping(30)
+            ->onOneServer();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [

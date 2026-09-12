@@ -27,8 +27,10 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $two_factor_confirmed_at
  * @property Carbon|null $locked_at
  * @property bool $must_change_password
+ * @property int $notification_days_before
  * @property array<string, bool>|null $notification_preferences
  * @property array<string, mixed>|null $notification_channel_config
+ * @property array<string, array<string, string>>|null $notification_channel_status
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -52,8 +54,10 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'password' => 'hashed',
             'locked_at' => 'datetime',
             'must_change_password' => 'boolean',
+            'notification_days_before' => 'integer',
             'notification_preferences' => 'array',
             'notification_channel_config' => 'encrypted:array',
+            'notification_channel_status' => 'encrypted:array',
         ];
     }
 
@@ -105,6 +109,45 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
                 $configurations,
             ),
         ])->save();
+    }
+
+    public function notificationDaysBefore(): int
+    {
+        return $this->notification_days_before ?? 0;
+    }
+
+    public function setNotificationDaysBefore(int $days): void
+    {
+        $this->forceFill(['notification_days_before' => $days])->save();
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    public function notificationChannelFailureStatus(): array
+    {
+        return $this->notification_channel_status ?? [];
+    }
+
+    public function recordNotificationChannelFailure(string $channel, string $message): void
+    {
+        $this->forceFill([
+            'notification_channel_status' => array_replace_recursive(
+                $this->notificationChannelFailureStatus(),
+                [$channel => [
+                    'failed_at' => now()->toISOString(),
+                    'message' => $message,
+                ]],
+            ),
+        ])->save();
+    }
+
+    public function clearNotificationChannelFailure(string $channel): void
+    {
+        $status = $this->notificationChannelFailureStatus();
+        unset($status[$channel]);
+
+        $this->forceFill(['notification_channel_status' => $status ?: null])->save();
     }
 
     /**

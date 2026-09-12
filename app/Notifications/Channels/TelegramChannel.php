@@ -40,7 +40,9 @@ class TelegramChannel
                 ->timeout(5)
                 ->post($url, $payload)
                 ->throw();
+            $notifiable->clearNotificationChannelFailure('telegram');
         } catch (Throwable $exception) {
+            $notifiable->recordNotificationChannelFailure('telegram', $exception->getMessage());
             Log::warning('Notification Telegram delivery failed.', [
                 'user_id' => $notifiable->getKey(),
                 'chat_id' => $chatId,
