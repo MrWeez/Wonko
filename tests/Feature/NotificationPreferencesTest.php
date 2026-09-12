@@ -167,3 +167,32 @@ test('auto-post delivers a Telegram message to its configured topic', function (
             && str_contains($request['text'], 'Telegram plan');
     });
 });
+
+test('auto-post delivers a Discord embed to its configured webhook', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://discord.example.test/hooks/wonko' => Http::response(['id' => 'message-id']),
+    ]);
+
+    $user = User::factory()->create();
+    $user->setNotificationPreferences(['database' => false, 'discord' => true]);
+    $user->setNotificationChannelConfigurations([
+        'discord' => ['url' => 'https://discord.example.test/hooks/wonko'],
+    ]);
+
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    Subscription::factory()->forAccount($account)->create([
+        'name' => 'Discord plan',
+        'next_due_date' => now()->subDay()->toDateString(),
+        'auto_post' => true,
+    ]);
+
+    $this->artisan('subscriptions:post-due')->assertExitCode(0);
+
+    Http::assertSent(function ($request): bool {
+        return $request->url() === 'https://discord.example.test/hooks/wonko'
+            && $request['username'] === 'Wonko'
+            && $request['embeds'][0]['title'] === 'Subscription due: Discord plan'
+            && str_ends_with($request['embeds'][0]['fields'][0]['value'], ' EUR');
+    });
+});

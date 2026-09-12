@@ -5,6 +5,7 @@ namespace App\Notifications;
 use App\Models\Subscription;
 use App\Models\SubscriptionOccurrence;
 use App\Models\User;
+use App\Notifications\Channels\DiscordChannel;
 use App\Notifications\Channels\TelegramChannel;
 use App\Notifications\Channels\WebhookChannel;
 use Carbon\CarbonImmutable;
@@ -43,6 +44,10 @@ class SubscriptionDueNotification extends Notification
 
         if ($notifiable->notificationChannelEnabled('telegram')) {
             $channels[] = TelegramChannel::class;
+        }
+
+        if ($notifiable->notificationChannelEnabled('discord')) {
+            $channels[] = DiscordChannel::class;
         }
 
         return $channels;
@@ -100,5 +105,30 @@ class SubscriptionDueNotification extends Notification
             'Amount: '.$this->occurrence->amount.' '.$this->occurrence->currency,
             'Due date: '.CarbonImmutable::parse((string) $this->occurrence->due_date)->toDateString(),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toDiscord(object $notifiable): array
+    {
+        return [
+            'username' => 'Wonko',
+            'embeds' => [[
+                'title' => 'Subscription due: '.$this->subscription->name,
+                'fields' => [
+                    [
+                        'name' => 'Amount',
+                        'value' => $this->occurrence->amount.' '.$this->occurrence->currency,
+                        'inline' => true,
+                    ],
+                    [
+                        'name' => 'Due date',
+                        'value' => CarbonImmutable::parse((string) $this->occurrence->due_date)->toDateString(),
+                        'inline' => true,
+                    ],
+                ],
+            ]],
+        ];
     }
 }
