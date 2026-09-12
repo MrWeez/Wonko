@@ -13,6 +13,7 @@ Route::middleware(array_filter([
     Route::view('dashboard', 'dashboard')->name('dashboard');
     Route::livewire('accounts', 'pages::accounts')->name('accounts.index');
     Route::livewire('transactions', 'pages::transactions')->name('transactions.index');
+    Route::livewire('categories', 'pages::categories')->name('categories.index');
 });
 
 require __DIR__.'/settings.php';

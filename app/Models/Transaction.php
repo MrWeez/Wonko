@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $amount
  * @property string|null $account_amount
  */
-#[Fillable(['account_id', 'related_transaction_id', 'type', 'transfer_direction', 'description', 'currency', 'amount', 'account_amount', 'transaction_date'])]
+#[Fillable(['account_id', 'category_id', 'related_transaction_id', 'type', 'transfer_direction', 'description', 'currency', 'amount', 'account_amount', 'transaction_date'])]
 class Transaction extends UserOwnedModel
 {
     /** @use HasFactory<TransactionFactory> */
@@ -42,6 +42,14 @@ class Transaction extends UserOwnedModel
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
+    }
+
+    /**
+     * @return BelongsTo<Category, $this>
+     */
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
     }
 
     /**

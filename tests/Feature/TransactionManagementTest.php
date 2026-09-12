@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Account;
+use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
 use App\TransferDirection;
@@ -153,4 +154,29 @@ test('transfers cannot use the same source and destination account', function ()
         ->set('transactionDate', now()->toDateString())
         ->call('saveTransaction')
         ->assertHasErrors(['transferDestinationAccountId']);
+});
+
+test('income and expense transactions can be assigned to owned categories', function () {
+    $user = User::factory()->create();
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    $category = Category::factory()->for($user)->create(['name' => 'Food']);
+
+    Livewire::actingAs($user)
+        ->test('pages::transactions')
+        ->set('transactionAccountId', $account->id)
+        ->set('transactionType', 'expense')
+        ->set('transactionCategoryId', $category->id)
+        ->set('transactionCurrency', 'EUR')
+        ->set('transactionAmount', '12.50')
+        ->set('transactionDate', now()->toDateString())
+        ->call('saveTransaction')
+        ->assertHasNoErrors();
+
+    $transaction = Transaction::query()->firstOrFail();
+
+    expect($transaction->category_id)->toBe($category->id);
+
+    $category->delete();
+
+    expect($transaction->fresh()->category_id)->toBeNull();
 });

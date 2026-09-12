@@ -3,6 +3,7 @@
 use App\TransactionType;
 use App\TransferDirection;
 use App\Models\Account;
+use App\Models\Category;
 use App\Models\Transaction;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,8 @@ new #[Title('Transactions')] class extends Component {
     public string $transactionAccountAmount = '';
 
     public string $transactionDate = '';
+
+    public ?int $transactionCategoryId = null;
 
     public ?int $transferDestinationAccountId = null;
 
@@ -70,13 +73,25 @@ new #[Title('Transactions')] class extends Component {
     }
 
     /**
+     * @return Collection<int, Category>
+     */
+    #[Computed]
+    public function categories(): Collection
+    {
+        return Category::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
      * @return Collection<int, Transaction>
      */
     #[Computed]
     public function transactions(): Collection
     {
         return Transaction::query()
-            ->with(['account', 'relatedTransaction.account'])
+            ->with(['account', 'category', 'relatedTransaction.account'])
             ->where(function ($query): void {
                 $query
                     ->where('type', '!=', TransactionType::Transfer->value)
@@ -99,6 +114,13 @@ new #[Title('Transactions')] class extends Component {
     public function updatedTransactionCurrency(string $currency): void
     {
         $this->transactionCurrency = strtoupper($currency);
+    }
+
+    public function updatedTransactionType(string $type): void
+    {
+        if ($type === TransactionType::Transfer->value) {
+            $this->transactionCategoryId = null;
+        }
     }
 
     public function updatedTransferDestinationAccountId(?int $accountId): void
@@ -126,6 +148,10 @@ new #[Title('Transactions')] class extends Component {
             'transactionAccountId' => ['required', Rule::exists('accounts', 'id')->where(fn ($query) => $query->where('user_id', auth()->id()))],
             'transactionType' => ['required', Rule::in([TransactionType::Expense->value, TransactionType::Income->value])],
             'transactionDescription' => ['nullable', 'string', 'max:255'],
+            'transactionCategoryId' => [
+                'nullable',
+                Rule::exists('categories', 'id')->where(fn ($query) => $query->where('user_id', auth()->id())),
+            ],
             'transactionCurrency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
             'transactionAmount' => ['required', 'numeric', 'gt:0', 'decimal:0,4'],
             'transactionDate' => ['required', 'date'],
@@ -145,6 +171,7 @@ new #[Title('Transactions')] class extends Component {
 
         $transaction->fill([
             'account_id' => $validated['transactionAccountId'],
+            'category_id' => $validated['transactionCategoryId'],
             'type' => $validated['transactionType'],
             'description' => $validated['transactionDescription'] ?: null,
             'currency' => $validated['transactionCurrency'],
@@ -247,6 +274,7 @@ new #[Title('Transactions')] class extends Component {
         $this->transactionAccountId = $transaction->account_id;
         $this->transactionType = $transaction->type->value;
         $this->transactionDescription = $transaction->description ?? '';
+        $this->transactionCategoryId = $transaction->category_id;
         $this->transactionCurrency = $transaction->currency;
         $this->transactionAmount = (string) $transaction->amount;
         $this->transactionAccountAmount = (string) ($transaction->account_amount ?? '');
@@ -284,6 +312,7 @@ new #[Title('Transactions')] class extends Component {
         $this->reset(
             'editingTransactionId',
             'transactionDescription',
+            'transactionCategoryId',
             'transactionAmount',
             'transactionAccountAmount',
             'transferDestinationAccountId',
@@ -331,6 +360,15 @@ new #[Title('Transactions')] class extends Component {
 
             <flux:input wire:model="transactionAmount" :label="__('Amount')" type="number" step="0.0001" min="0" />
             <flux:input wire:model="transactionCurrency" :label="__('Currency')" maxlength="3" class="uppercase" />
+
+            @if ($transactionType !== TransactionType::Transfer->value)
+                <flux:select wire:model="transactionCategoryId" :label="__('Category')" placeholder="{{ __('No category') }}">
+                    <flux:select.option value="">{{ __('No category') }}</flux:select.option>
+                    @foreach ($this->categories as $category)
+                        <flux:select.option value="{{ $category->id }}">{{ $category->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
 
             @if ($transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
                 <flux:input wire:model="transactionAccountAmount" :label="__('Amount on account')" type="number" step="0.0001" min="0" />
@@ -381,6 +419,7 @@ new #[Title('Transactions')] class extends Component {
                     <tr>
                         <th class="py-3 pe-4 font-medium">{{ __('Date') }}</th>
                         <th class="py-3 pe-4 font-medium">{{ __('Description') }}</th>
+                        <th class="py-3 pe-4 font-medium">{{ __('Category') }}</th>
                         <th class="py-3 pe-4 font-medium">{{ __('Account') }}</th>
                         <th class="py-3 pe-4 text-end font-medium">{{ __('Amount') }}</th>
                         <th class="py-3 text-end font-medium">{{ __('Actions') }}</th>
@@ -391,6 +430,16 @@ new #[Title('Transactions')] class extends Component {
                         <tr wire:key="transaction-{{ $transaction->id }}">
                             <td class="py-3 pe-4">{{ $transaction->transaction_date->format('Y-m-d') }}</td>
                             <td class="py-3 pe-4">{{ $transaction->description ?? __('Untitled') }}</td>
+                            <td class="py-3 pe-4">
+                                @if ($transaction->category)
+                                    <span class="inline-flex items-center gap-2">
+                                        <span class="size-2.5 rounded-full" style="background-color: {{ $transaction->category->color }}" aria-hidden="true"></span>
+                                        {{ $transaction->category->name }}
+                                    </span>
+                                @else
+                                    <span class="text-zinc-500">{{ __('Uncategorized') }}</span>
+                                @endif
+                            </td>
                             <td class="py-3 pe-4">
                                 @if ($transaction->type === TransactionType::Transfer)
                                     {{ $transaction->account->name }} &rarr; {{ $transaction->relatedTransaction?->account?->name ?? __('Unknown account') }}
@@ -410,7 +459,7 @@ new #[Title('Transactions')] class extends Component {
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="py-6 text-center text-zinc-500">{{ __('No transactions yet.') }}</td>
+                            <td colspan="6" class="py-6 text-center text-zinc-500">{{ __('No transactions yet.') }}</td>
                         </tr>
                     @endforelse
                 </tbody>
