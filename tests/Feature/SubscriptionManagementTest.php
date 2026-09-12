@@ -91,3 +91,30 @@ test('users cannot see another users subscriptions', function () {
 
     expect(Subscription::query()->find($subscription->id))->toBeNull();
 });
+
+test('due auto-post subscriptions create one occurrence and are idempotent', function () {
+    $user = User::factory()->create();
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    $subscription = Subscription::factory()->forAccount($account)->create([
+        'name' => 'Automatic plan',
+        'amount' => '5.00',
+        'period_count' => 1,
+        'period_unit' => 'month',
+        'next_due_date' => '2026-08-01',
+        'auto_post' => true,
+    ]);
+
+    $this->artisan('subscriptions:post-due')
+        ->expectsOutputToContain('Posted 2 subscription occurrence(s).')
+        ->assertExitCode(0);
+
+    expect(SubscriptionOccurrence::withoutGlobalScopes()->where('subscription_id', $subscription->id)->count())->toBe(2)
+        ->and(Transaction::withoutGlobalScopes()->where('description', 'Automatic plan')->count())->toBe(2)
+        ->and($subscription->fresh()->next_due_date->toDateString())->toBe('2026-10-01');
+
+    $this->artisan('subscriptions:post-due')
+        ->expectsOutputToContain('Posted 0 subscription occurrence(s).')
+        ->assertExitCode(0);
+
+    expect(SubscriptionOccurrence::withoutGlobalScopes()->where('subscription_id', $subscription->id)->count())->toBe(2);
+});
