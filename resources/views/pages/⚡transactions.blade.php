@@ -767,30 +767,73 @@ new #[Title('Transactions')] class extends Component {
                     @endif
 
                     @if ($transactionType === TransactionType::Transfer->value)
-                        <flux:select wire:model.live="transactionAccountId" :label="__('Source Account (From)')" placeholder="{{ __('Choose source account') }}">
-                            @foreach ($this->accounts as $account)
-                                <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
-                            @endforeach
-                        </flux:select>
+                        {{-- 2-panel transfer layout spanning full row --}}
+                        <div class="sm:col-span-2 lg:col-span-4">
+                            <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+                                <div class="mb-3 flex items-center gap-2">
+                                    <flux:icon icon="arrows-right-left" class="size-4 text-zinc-500" />
+                                    <flux:heading size="sm">{{ __('Transfer between accounts') }}</flux:heading>
+                                    <flux:text size="xs" class="text-zinc-500">{{ __('Specify how much leaves the source and how much arrives at the destination.') }}</flux:text>
+                                </div>
 
-                        <flux:select wire:model.live="transferDestinationAccountId" :label="__('Destination Account (To)')" placeholder="{{ __('Choose destination account') }}">
-                            @foreach ($this->accounts as $account)
-                                @if ($account->id !== $transactionAccountId)
-                                    <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
-                                @endif
-                            @endforeach
-                        </flux:select>
+                                <div class="grid items-start gap-4 sm:grid-cols-[1fr_auto_1fr]">
+                                    {{-- Source Panel --}}
+                                    <div class="space-y-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                                        <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                                            <flux:icon icon="arrow-up-right" class="size-3.5 text-red-500" />
+                                            {{ __('From (Source)') }}
+                                        </div>
+                                        <flux:select wire:model.live="transactionAccountId" :label="__('Account')" placeholder="{{ __('Choose source account') }}">
+                                            @foreach ($this->accounts as $account)
+                                                <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                                            @endforeach
+                                        </flux:select>
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <flux:input wire:model.live.debounce.300ms="transactionAmount" :label="__('Amount sent')" type="number" step="0.0001" min="0" placeholder="0.00" />
+                                            <flux:input wire:model.live="transactionCurrency" :label="__('Currency')" maxlength="3" class="uppercase" placeholder="EUR" />
+                                        </div>
+                                        @if ($transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
+                                            <div>
+                                                <flux:input wire:model="transactionAccountAmount" :label="__('Charged to account (:curr)', ['curr' => $this->accounts->firstWhere('id', $transactionAccountId)?->currency])" type="number" step="0.0001" min="0" />
+                                                <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('No auto-FX: enter exact statement amount.') }}</flux:text>
+                                            </div>
+                                        @endif
+                                    </div>
 
-                        <flux:input wire:model="transferDestinationAmount" :label="__('Destination Amount')" type="number" step="0.0001" min="0" />
-                        <flux:input wire:model="transferDestinationCurrency" :label="__('Destination Currency')" maxlength="3" class="uppercase" />
+                                    {{-- Arrow Divider --}}
+                                    <div class="flex items-center justify-center pt-8">
+                                        <div class="flex size-9 items-center justify-center rounded-full border border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-800">
+                                            <flux:icon icon="arrow-right" class="size-4 text-zinc-500" />
+                                        </div>
+                                    </div>
 
-                        @if ($transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
-                            <flux:input wire:model="transactionAccountAmount" :label="__('Source Amount on Account')" type="number" step="0.0001" min="0" />
-                        @endif
-
-                        @if ($transferDestinationAccountId && $transferDestinationCurrency !== ($this->accounts->firstWhere('id', $transferDestinationAccountId)?->currency ?? ''))
-                            <flux:input wire:model="transferDestinationAccountAmount" :label="__('Destination Amount on Account')" type="number" step="0.0001" min="0" />
-                        @endif
+                                    {{-- Destination Panel --}}
+                                    <div class="space-y-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                                        <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                                            <flux:icon icon="arrow-down-left" class="size-3.5 text-green-500" />
+                                            {{ __('To (Destination)') }}
+                                        </div>
+                                        <flux:select wire:model.live="transferDestinationAccountId" :label="__('Account')" placeholder="{{ __('Choose destination account') }}">
+                                            @foreach ($this->accounts as $account)
+                                                @if ($account->id !== $transactionAccountId)
+                                                    <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                                                @endif
+                                            @endforeach
+                                        </flux:select>
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <flux:input wire:model="transferDestinationAmount" :label="__('Amount received')" type="number" step="0.0001" min="0" placeholder="0.00" />
+                                            <flux:input wire:model="transferDestinationCurrency" :label="__('Currency')" maxlength="3" class="uppercase" />
+                                        </div>
+                                        @if ($transferDestinationAccountId && $transferDestinationCurrency !== ($this->accounts->firstWhere('id', $transferDestinationAccountId)?->currency ?? ''))
+                                            <div>
+                                                <flux:input wire:model="transferDestinationAccountAmount" :label="__('Credited to account (:curr)', ['curr' => $this->accounts->firstWhere('id', $transferDestinationAccountId)?->currency])" type="number" step="0.0001" min="0" />
+                                                <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('No auto-FX: enter exact statement amount.') }}</flux:text>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     @endif
 
                     <flux:input wire:model="transactionDescription" :label="__('Description')" placeholder="{{ __('e.g. Groceries, Salary, Coffee') }}" />
@@ -862,13 +905,59 @@ new #[Title('Transactions')] class extends Component {
                             </td>
                             <td class="py-3 pe-4">
                                 @if ($transaction->type === TransactionType::Transfer)
-                                    <span class="font-medium">{{ $transaction->account->name }}</span> &rarr; <span>{{ $transaction->relatedTransaction?->account?->name ?? __('Unknown account') }}</span>
+                                    <div class="space-y-1">
+                                        <div class="flex flex-wrap items-center gap-1 text-sm">
+                                            <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $transaction->account->name }}</span>
+                                            <flux:icon icon="arrow-right" class="size-3.5 shrink-0 text-zinc-400" />
+                                            <span class="text-zinc-600 dark:text-zinc-400">{{ $transaction->relatedTransaction?->account?->name ?? __('Unknown') }}</span>
+                                        </div>
+                                        <flux:badge size="sm" color="blue">{{ __('Internal Transfer') }}</flux:badge>
+                                    </div>
                                 @else
-                                    <span class="font-medium">{{ $transaction->account->name }}</span>
+                                    <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $transaction->account->name }}</span>
                                 @endif
                             </td>
-                            <td class="py-3 pe-4 text-end font-semibold {{ $transaction->type === TransactionType::Income ? 'text-green-600 dark:text-green-400' : 'text-zinc-900 dark:text-zinc-100' }}">
-                                {{ $transaction->type === TransactionType::Income ? '+' : '-' }}{{ $transaction->amountOnAccount() }} {{ $transaction->account->currency }}
+                            <td class="py-3 pe-4 text-end">
+                                @if ($transaction->type === TransactionType::Transfer)
+                                    @php($dest = $transaction->relatedTransaction)
+                                    <div class="space-y-0.5">
+                                        <div class="font-semibold text-red-600 dark:text-red-400">
+                                            −{{ number_format((float) $transaction->amount, 2) }} {{ $transaction->currency }}
+                                        </div>
+                                        @if ($dest)
+                                            <div class="text-xs font-medium text-green-600 dark:text-green-400">
+                                                +{{ number_format((float) $dest->amount, 2) }} {{ $dest->currency }}
+                                            </div>
+                                        @endif
+                                        @if ($transaction->account_amount !== null)
+                                            <div class="text-xs text-zinc-400">
+                                                {{ __('charged') }}: {{ number_format((float) $transaction->account_amount, 2) }} {{ $transaction->account->currency }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                @elseif ($transaction->type === TransactionType::Income)
+                                    <div class="space-y-0.5">
+                                        <div class="font-semibold text-green-600 dark:text-green-400">
+                                            +{{ number_format((float) $transaction->amount, 2) }} {{ $transaction->currency }}
+                                        </div>
+                                        @if ($transaction->account_amount !== null)
+                                            <div class="text-xs text-zinc-500">
+                                                {{ __('credited') }}: +{{ number_format((float) $transaction->account_amount, 2) }} {{ $transaction->account->currency }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <div class="space-y-0.5">
+                                        <div class="font-semibold text-zinc-900 dark:text-zinc-100">
+                                            −{{ number_format((float) $transaction->amount, 2) }} {{ $transaction->currency }}
+                                        </div>
+                                        @if ($transaction->account_amount !== null)
+                                            <div class="text-xs text-zinc-500">
+                                                {{ __('debited') }}: {{ number_format((float) $transaction->account_amount, 2) }} {{ $transaction->account->currency }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endif
                             </td>
                             <td class="py-3 text-end">
                                 <div class="flex justify-end gap-1">

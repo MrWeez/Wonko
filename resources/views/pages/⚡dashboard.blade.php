@@ -271,11 +271,56 @@ new #[Title('Dashboard')] class extends Component {
                                         <span class="text-zinc-400">—</span>
                                     @endif
                                 </td>
-                                <td class="py-3 pe-4 text-zinc-600 dark:text-zinc-400">
-                                    {{ $tx->account->name }}
+                                <td class="py-3 pe-4">
+                                    @if ($tx->type === TransactionType::Transfer)
+                                        <div class="space-y-1">
+                                            <div class="flex flex-wrap items-center gap-1 text-sm">
+                                                <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $tx->account->name }}</span>
+                                                <flux:icon icon="arrow-right" class="size-3.5 shrink-0 text-zinc-400" />
+                                                <span class="text-zinc-600 dark:text-zinc-400">{{ $tx->relatedTransaction?->account?->name ?? __('Unknown') }}</span>
+                                            </div>
+                                            <flux:badge size="sm" color="blue">{{ __('Internal Transfer') }}</flux:badge>
+                                        </div>
+                                    @else
+                                        <span class="text-zinc-600 dark:text-zinc-400">{{ $tx->account->name }}</span>
+                                    @endif
                                 </td>
-                                <td class="py-3 text-end font-medium {{ $tx->type === TransactionType::Income ? 'text-green-600 dark:text-green-400' : '' }}">
-                                    {{ $tx->type === TransactionType::Income ? '+' : '-' }}{{ $tx->amountOnAccount() }} {{ $tx->account->currency }}
+                                <td class="py-3 text-end">
+                                    @if ($tx->type === TransactionType::Transfer)
+                                        @php($dest = $tx->relatedTransaction)
+                                        <div class="space-y-0.5">
+                                            <div class="font-medium text-red-600 dark:text-red-400">
+                                                −{{ number_format((float) $tx->amount, 2) }} {{ $tx->currency }}
+                                            </div>
+                                            @if ($dest)
+                                                <div class="text-xs font-medium text-green-600 dark:text-green-400">
+                                                    +{{ number_format((float) $dest->amount, 2) }} {{ $dest->currency }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @elseif ($tx->type === TransactionType::Income)
+                                        <div class="space-y-0.5">
+                                            <div class="font-medium text-green-600 dark:text-green-400">
+                                                +{{ number_format((float) $tx->amount, 2) }} {{ $tx->currency }}
+                                            </div>
+                                            @if ($tx->account_amount !== null)
+                                                <div class="text-xs text-zinc-500">
+                                                    +{{ number_format((float) $tx->account_amount, 2) }} {{ $tx->account->currency }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <div class="space-y-0.5">
+                                            <div class="font-medium text-zinc-900 dark:text-zinc-100">
+                                                −{{ number_format((float) $tx->amount, 2) }} {{ $tx->currency }}
+                                            </div>
+                                            @if ($tx->account_amount !== null)
+                                                <div class="text-xs text-zinc-500">
+                                                    {{ number_format((float) $tx->account_amount, 2) }} {{ $tx->account->currency }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
