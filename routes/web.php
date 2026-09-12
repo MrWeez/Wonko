@@ -14,6 +14,7 @@ Route::middleware(array_filter([
     Route::livewire('accounts', 'pages::accounts')->name('accounts.index');
     Route::livewire('transactions', 'pages::transactions')->name('transactions.index');
     Route::livewire('categories', 'pages::categories')->name('categories.index');
+    Route::livewire('subscriptions', 'pages::subscriptions')->name('subscriptions.index');
 });
 
 require __DIR__.'/settings.php';

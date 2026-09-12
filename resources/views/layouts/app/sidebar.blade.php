@@ -24,6 +24,9 @@
                     <flux:sidebar.item icon="tag" :href="route('categories.index')" :current="request()->routeIs('categories.*')" wire:navigate>
                         {{ __('Categories') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="arrow-path-rounded-square" :href="route('subscriptions.index')" :current="request()->routeIs('subscriptions.*')" wire:navigate>
+                        {{ __('Subscriptions') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

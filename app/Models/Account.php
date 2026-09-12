@@ -44,6 +44,14 @@ class Account extends UserOwnedModel
     }
 
     /**
+     * @return HasMany<Subscription, $this>
+     */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    /**
      * Return the live balance derived from income and expense transactions.
      */
     public function balance(): string
