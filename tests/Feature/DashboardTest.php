@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Laravel\Fortify\Features;
 
 test('guests are redirected to the login page', function () {
     $response = $this->get(route('dashboard'));
@@ -16,6 +17,8 @@ test('authenticated users can visit the dashboard', function () {
 });
 
 test('unverified users are redirected to email verification', function () {
+    $this->skipUnlessFortifyHas(Features::emailVerification());
+
     $user = User::factory()->unverified()->create();
 
     $this->actingAs($user)
