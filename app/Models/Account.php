@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\AccountType;
+use App\TransactionType;
 use Database\Factories\AccountFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['name', 'currency', 'type', 'bank_id'])]
 class Account extends UserOwnedModel
@@ -30,5 +32,27 @@ class Account extends UserOwnedModel
     public function bank(): BelongsTo
     {
         return $this->belongsTo(Bank::class);
+    }
+
+    /**
+     * @return HasMany<Transaction, $this>
+     */
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
+    /**
+     * Return the live balance derived from income and expense transactions.
+     */
+    public function balance(): string
+    {
+        return (string) $this->transactions()
+            ->whereIn('type', [TransactionType::Expense->value, TransactionType::Income->value])
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN type = ? THEN COALESCE(account_amount, amount) ELSE -COALESCE(account_amount, amount) END), 0) AS balance',
+                [TransactionType::Income->value],
+            )
+            ->value('balance');
     }
 }

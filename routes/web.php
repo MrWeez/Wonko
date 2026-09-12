@@ -12,6 +12,7 @@ Route::middleware(array_filter([
 ]))->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
     Route::livewire('accounts', 'pages::accounts')->name('accounts.index');
+    Route::livewire('transactions', 'pages::transactions')->name('transactions.index');
 });
 
 require __DIR__.'/settings.php';
