@@ -10,7 +10,7 @@ Route::middleware(array_filter([
     config('auth.email_verification_required') ? 'verified' : null,
     EnsurePasswordChange::class,
 ]))->group(function () {
-    Route::view('dashboard', 'dashboard')->name('dashboard');
+    Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
     Route::livewire('accounts', 'pages::accounts')->name('accounts.index');
     Route::livewire('payment-methods', 'pages::payment-methods')->name('payment-methods.index');
     Route::livewire('transactions', 'pages::transactions')->name('transactions.index');

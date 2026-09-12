@@ -367,98 +367,155 @@ new #[Title('Subscriptions')] class extends Component {
 
 <section class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 p-6 lg:p-10">
     <header class="flex flex-col gap-2 border-b border-zinc-200 pb-6 dark:border-zinc-700">
-        <flux:heading size="xl">{{ __('Subscriptions') }}</flux:heading>
-        <flux:subheading>{{ __('Track recurring payments and their actual occurrences.') }}</flux:subheading>
+        <flux:heading size="xl">{{ __('Subscriptions & Recurring Expenses') }}</flux:heading>
+        <flux:subheading>{{ __('Track recurring bills, streaming services, and rent with automatic or manual posting.') }}</flux:subheading>
     </header>
 
     <section class="space-y-5">
         <div class="flex items-center justify-between gap-4">
-            <flux:heading size="lg">{{ $editingSubscriptionId ? __('Edit subscription') : __('New subscription') }}</flux:heading>
+            <flux:heading size="lg">{{ $editingSubscriptionId ? __('Edit subscription') : __('New recurring subscription') }}</flux:heading>
             @if ($editingSubscriptionId)
                 <flux:button variant="ghost" size="sm" wire:click="resetSubscriptionForm">{{ __('Cancel') }}</flux:button>
             @endif
         </div>
 
-        <form wire:submit="saveSubscription" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <flux:input wire:model="subscriptionName" :label="__('Name')" placeholder="{{ __('Subscription name') }}" />
-            <flux:select wire:model.live="subscriptionAccountId" :label="__('Account')" placeholder="{{ __('Choose an account') }}">
-                @foreach ($this->accounts as $account)
-                    <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
-                @endforeach
-            </flux:select>
-            @if ($this->paymentMethods->isNotEmpty())
-                <flux:select wire:model="subscriptionPaymentMethodId" :label="__('Payment Method')" placeholder="{{ __('Direct / None') }}">
-                    <flux:select.option value="">{{ __('Direct / None') }}</flux:select.option>
-                    @foreach ($this->paymentMethods as $method)
-                        <flux:select.option value="{{ $method->id }}">{{ $method->name }}</flux:select.option>
-                    @endforeach
-                </flux:select>
-            @endif
-            <flux:select wire:model="subscriptionCategoryId" :label="__('Category')" placeholder="{{ __('No category') }}">
-                <flux:select.option value="">{{ __('No category') }}</flux:select.option>
-                @foreach ($this->categories as $category)
-                    <flux:select.option value="{{ $category->id }}">{{ $category->name }}</flux:select.option>
-                @endforeach
-            </flux:select>
-            <flux:input wire:model="subscriptionAmount" :label="__('Amount')" type="number" step="0.0001" min="0" />
-            <flux:input wire:model="subscriptionCurrency" :label="__('Currency')" maxlength="3" class="uppercase" />
-            <flux:input wire:model="subscriptionPeriodCount" :label="__('Every')" type="number" min="1" />
-            <flux:select wire:model="subscriptionPeriodUnit" :label="__('Period')">
-                @foreach (SubscriptionPeriodUnit::cases() as $unit)
-                    <flux:select.option value="{{ $unit->value }}">{{ __(ucfirst($unit->value)) }}</flux:select.option>
-                @endforeach
-            </flux:select>
-            <flux:input wire:model="subscriptionNextDueDate" :label="__('Next due date')" type="date" />
-            <flux:checkbox wire:model="subscriptionAutoPost" :label="__('Post automatically when due')" />
-            <flux:checkbox wire:model="subscriptionActive" :label="__('Active')" />
-            @foreach ($subscriptionNotificationChannels as $channel => $value)
-                <flux:select wire:model="subscriptionNotificationChannels.{{ $channel }}" :label="__(ucfirst($channel).' notifications')">
-                    <flux:select.option value="global">{{ __('Use global setting') }}</flux:select.option>
-                    <flux:select.option value="enabled">{{ __('Always enable') }}</flux:select.option>
-                    <flux:select.option value="disabled">{{ __('Always disable') }}</flux:select.option>
-                </flux:select>
-            @endforeach
-            <div class="flex items-end">
+        <form wire:submit="saveSubscription" class="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                    <flux:input wire:model="subscriptionName" :label="__('Subscription Name')" placeholder="{{ __('e.g. Netflix, Spotify, Gym, Rent') }}" />
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Service or recurring bill name.') }}</flux:text>
+                </div>
+
+                <div>
+                    <flux:select wire:model.live="subscriptionAccountId" :label="__('Drawn from Account')" placeholder="{{ __('Choose an account') }}">
+                        @foreach ($this->accounts as $account)
+                            <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Primary account for this bill.') }}</flux:text>
+                </div>
+
+                @if ($this->paymentMethods->isNotEmpty())
+                    <div>
+                        <flux:select wire:model="subscriptionPaymentMethodId" :label="__('Payment Method (Optional)')" placeholder="{{ __('Direct / None') }}">
+                            <flux:select.option value="">{{ __('Direct / None') }}</flux:select.option>
+                            @foreach ($this->paymentMethods as $method)
+                                <flux:select.option value="{{ $method->id }}">{{ $method->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Auto-split across linked accounts.') }}</flux:text>
+                    </div>
+                @endif
+
+                <div>
+                    <flux:select wire:model="subscriptionCategoryId" :label="__('Category')" placeholder="{{ __('No category') }}">
+                        <flux:select.option value="">{{ __('No category') }}</flux:select.option>
+                        @foreach ($this->categories as $category)
+                            <flux:select.option value="{{ $category->id }}">{{ $category->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('For reporting and breakdown.') }}</flux:text>
+                </div>
+
+                <div>
+                    <flux:input wire:model="subscriptionAmount" :label="__('Expected Amount')" type="number" step="0.0001" min="0" placeholder="0.00" />
+                </div>
+
+                <div>
+                    <flux:input wire:model="subscriptionCurrency" :label="__('Currency')" maxlength="3" class="uppercase" placeholder="EUR" />
+                </div>
+
+                <div>
+                    <flux:input wire:model="subscriptionPeriodCount" :label="__('Repeat Every')" type="number" min="1" />
+                </div>
+
+                <div>
+                    <flux:select wire:model="subscriptionPeriodUnit" :label="__('Interval Unit')">
+                        @foreach (SubscriptionPeriodUnit::cases() as $unit)
+                            <flux:select.option value="{{ $unit->value }}">{{ __(ucfirst($unit->value)) }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+
+                <div>
+                    <flux:input wire:model="subscriptionNextDueDate" :label="__('Next Due Date')" type="date" />
+                </div>
+
+                <div class="flex flex-col justify-center pt-2">
+                    <flux:checkbox wire:model="subscriptionAutoPost" :label="__('Auto-post when due')" />
+                    <flux:text size="xs" class="ms-6 text-zinc-500">{{ __('Automatically records expense without asking.') }}</flux:text>
+                </div>
+
+                <div class="flex flex-col justify-center pt-2">
+                    <flux:checkbox wire:model="subscriptionActive" :label="__('Active subscription')" />
+                    <flux:text size="xs" class="ms-6 text-zinc-500">{{ __('Uncheck to pause tracking.') }}</flux:text>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
                 <flux:button type="submit" variant="primary">{{ $editingSubscriptionId ? __('Save changes') : __('Add subscription') }}</flux:button>
             </div>
         </form>
     </section>
 
     @if ($occurrenceSubscriptionId)
-        <section class="space-y-5 border-y border-zinc-200 py-6 dark:border-zinc-700">
+        <section class="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-700 dark:bg-zinc-900">
             <div class="flex items-center justify-between gap-4">
-                <flux:heading size="lg">{{ __('Record occurrence') }}</flux:heading>
+                <div>
+                    <flux:heading size="lg">{{ __('Record Specific Occurrence') }}</flux:heading>
+                    <flux:text size="xs" class="text-zinc-500">{{ __('Confirm the actual price paid for this occurrence (e.g. price change or exchange rate).') }}</flux:text>
+                </div>
                 <flux:button variant="ghost" size="sm" wire:click="resetOccurrenceForm">{{ __('Cancel') }}</flux:button>
             </div>
             <form wire:submit="saveOccurrence" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <flux:input wire:model="occurrenceAmount" :label="__('Actual amount')" type="number" step="0.0001" min="0" />
+                <flux:input wire:model="occurrenceAmount" :label="__('Actual amount paid')" type="number" step="0.0001" min="0" />
                 <flux:input wire:model="occurrenceCurrency" :label="__('Currency')" maxlength="3" class="uppercase" />
-                <flux:input wire:model="occurrenceDueDate" :label="__('Due date')" type="date" />
-                <flux:input wire:model="occurrenceNotes" :label="__('Notes')" placeholder="{{ __('Optional') }}" />
+                <flux:input wire:model="occurrenceDueDate" :label="__('Payment date')" type="date" />
+                <flux:input wire:model="occurrenceNotes" :label="__('Notes (e.g. annual rate change)')" placeholder="{{ __('Optional') }}" />
                 @php($occurrenceSubscription = $this->subscriptions->firstWhere('id', $occurrenceSubscriptionId))
                 @if ($occurrenceSubscription && $occurrenceCurrency !== $occurrenceSubscription->account->currency)
-                    <flux:input wire:model="occurrenceAccountAmount" :label="__('Amount on account')" type="number" step="0.0001" min="0" />
+                    <flux:input wire:model="occurrenceAccountAmount" :label="__('Amount on account (:curr)', ['curr' => $occurrenceSubscription->account->currency])" type="number" step="0.0001" min="0" />
                 @endif
-                <flux:button type="submit" variant="primary">{{ __('Record occurrence') }}</flux:button>
+                <div class="flex items-end sm:col-span-2 lg:col-span-4">
+                    <flux:button type="submit" variant="primary">{{ __('Confirm & Record Payment') }}</flux:button>
+                </div>
             </form>
         </section>
     @endif
 
     <section class="space-y-4">
-        <flux:heading size="lg">{{ __('Your subscriptions') }}</flux:heading>
+        <flux:heading size="lg">{{ __('Your active & paused subscriptions') }}</flux:heading>
         <div class="divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
             @forelse ($this->subscriptions as $subscription)
                 <div wire:key="subscription-{{ $subscription->id }}" class="space-y-3 py-4">
                     <div class="flex flex-wrap items-center gap-4">
                         <div class="min-w-0 flex-1">
-                            <flux:text class="font-medium">{{ $subscription->name }}</flux:text>
-                            <flux:text size="sm">
-                                {{ $subscription->amount }} {{ $subscription->currency }} · {{ $subscription->account->name }}
+                            <div class="flex items-center gap-2">
+                                <span class="font-semibold text-zinc-900 dark:text-zinc-100">{{ $subscription->name }}</span>
+                                @if ($subscription->category)
+                                    <span class="inline-flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                                        <span class="size-2 rounded-full" style="background-color: {{ $subscription->category->color }}" aria-hidden="true"></span>
+                                        {{ $subscription->category->name }}
+                                    </span>
+                                @endif
+                                @if ($subscription->next_due_date->isPast())
+                                    <flux:badge size="sm" color="red">{{ __('Overdue') }}</flux:badge>
+                                @endif
+                            </div>
+                            <div class="mt-1 text-xs text-zinc-500">
+                                <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ $subscription->amount }} {{ $subscription->currency }}</span>
+                                · {{ __('Every :count :unit', ['count' => $subscription->period_count, 'unit' => ucfirst($subscription->period_unit->value)]) }}
+                                · {{ $subscription->account->name }}
                                 @if ($subscription->paymentMethod)
                                     ({{ $subscription->paymentMethod->name }})
                                 @endif
-                                · {{ __('Due') }} {{ $subscription->next_due_date->format('Y-m-d') }}
-                            </flux:text>
+                                · {{ __('Next Due:') }} <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ $subscription->next_due_date->format('Y-m-d') }}</span>
+                                @if ($subscription->auto_post)
+                                    · <span class="text-green-600 dark:text-green-400">{{ __('Auto-posts') }}</span>
+                                @else
+                                    · <span>{{ __('Manual confirmation') }}</span>
+                                @endif
+                            </div>
                         </div>
                         <flux:badge :color="$subscription->active ? 'green' : 'zinc'">{{ $subscription->active ? __('Active') : __('Paused') }}</flux:badge>
                         <div class="flex shrink-0 gap-1">
@@ -468,16 +525,19 @@ new #[Title('Subscriptions')] class extends Component {
                         </div>
                     </div>
                     @if ($subscription->occurrences->isNotEmpty())
-                        <div class="ps-4 text-sm text-zinc-500">
-                            {{ __('Occurrences') }}: {{ $subscription->occurrences->count() }}
+                        <div class="ps-4 text-xs text-zinc-500">
+                            {{ __('Recent occurrences (:count total):', ['count' => $subscription->occurrences->count()]) }}
                             @foreach ($subscription->occurrences->take(3) as $occurrence)
-                                <span class="ms-3">{{ $occurrence->due_date->format('Y-m-d') }} · {{ $occurrence->amount }} {{ $occurrence->currency }}</span>
+                                <span class="ms-2 rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">{{ $occurrence->due_date->format('Y-m-d') }} ({{ $occurrence->amount }} {{ $occurrence->currency }})</span>
                             @endforeach
                         </div>
                     @endif
                 </div>
             @empty
-                <flux:text class="py-4">{{ __('No subscriptions yet.') }}</flux:text>
+                <div class="py-8 text-center text-sm text-zinc-500">
+                    <div>{{ __('No subscriptions recorded yet.') }}</div>
+                    <div class="mt-1 text-xs text-zinc-400">{{ __('Add Netflix, gym, rent, or recurring bills using the form above.') }}</div>
+                </div>
             @endforelse
         </div>
     </section>

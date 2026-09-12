@@ -143,8 +143,36 @@ new #[Title('Payment Methods')] class extends Component {
 <section class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 p-6 lg:p-10">
     <header class="flex flex-col gap-2 border-b border-zinc-200 pb-6 dark:border-zinc-700">
         <flux:heading size="xl">{{ __('Payment Methods') }}</flux:heading>
-        <flux:subheading>{{ __('Configure composite payment methods like PayPal that draw from an internal balance and a backup account.') }}</flux:subheading>
+        <flux:subheading>{{ __('Composite payment methods connect multiple accounts so you can automatically split transactions.') }}</flux:subheading>
     </header>
+
+    {{-- Explanatory card for clarity --}}
+    <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-700 dark:bg-zinc-900">
+        <div class="flex items-start gap-3">
+            <div class="mt-0.5 rounded-md bg-zinc-900 p-1.5 text-white dark:bg-white dark:text-zinc-900">
+                <flux:icon icon="light-bulb" class="size-4" />
+            </div>
+            <div class="space-y-1">
+                <div class="font-semibold text-zinc-900 dark:text-zinc-100">{{ __('How Payment Methods Work in Wonko') }}</div>
+                <flux:text size="sm">
+                    {{ __('Use Payment Methods when you pay via services like PayPal, Curve, or split wallets that combine multiple accounts. For example, a **PayPal** method draws from your *PayPal Balance* account first, and automatically debits your *Credit Card* account for the remainder. Both underlying account balances stay 100% accurate.') }}
+                </flux:text>
+            </div>
+        </div>
+    </div>
+
+    @if ($this->accounts->count() < 2)
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+            <div class="flex items-center gap-2 font-medium">
+                <flux:icon icon="exclamation-circle" class="size-4" />
+                {{ __('Multiple accounts recommended') }}
+            </div>
+            <div class="mt-1">
+                {{ __('To create a composite split payment method (e.g. PayPal Balance + Linked Card), you need at least two accounts in Wonko.') }}
+                <a href="{{ route('accounts.index') }}" class="font-semibold underline" wire:navigate>{{ __('Add another account here &rarr;') }}</a>
+            </div>
+        </div>
+    @endif
 
     <section class="space-y-5">
         <div class="flex items-center justify-between gap-4">
@@ -154,37 +182,72 @@ new #[Title('Payment Methods')] class extends Component {
             @endif
         </div>
 
-        <form wire:submit="savePaymentMethod" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <flux:input wire:model="name" :label="__('Name')" placeholder="{{ __('e.g. PayPal (Balance + Visa)') }}" />
+        <form wire:submit="savePaymentMethod" class="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                    <flux:input wire:model="name" :label="__('Method Name')" placeholder="{{ __('e.g. PayPal (Balance + Visa)') }}" />
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('A recognizable name shown when logging expenses.') }}</flux:text>
+                </div>
 
-            <flux:select wire:model.live="type" :label="__('Type')">
-                <flux:select.option value="composite">{{ __('Composite / Split') }}</flux:select.option>
-                <flux:select.option value="single">{{ __('Single account') }}</flux:select.option>
-            </flux:select>
+                <div>
+                    <flux:select wire:model.live="type" :label="__('Method Type')">
+                        <flux:select.option value="composite">{{ __('Composite / Split (2 accounts)') }}</flux:select.option>
+                        <flux:select.option value="single">{{ __('Single Account Alias') }}</flux:select.option>
+                    </flux:select>
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Composite splits charges across primary & backup accounts.') }}</flux:text>
+                </div>
 
-            <flux:select wire:model.live="primaryAccountId" :label="__('Primary account')" placeholder="{{ __('Select primary account') }}">
-                @foreach ($this->accounts as $account)
-                    <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
-                @endforeach
-            </flux:select>
+                <div>
+                    <flux:select wire:model.live="primaryAccountId" :label="__('Primary Account (Drawn first)')" placeholder="{{ __('Select primary account') }}">
+                        @foreach ($this->accounts as $account)
+                            <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Account checked first (e.g. PayPal balance).') }}</flux:text>
+                </div>
 
-            @if ($type === \App\PaymentMethodType::Composite->value)
-                <flux:select wire:model="secondaryAccountId" :label="__('Backup / Secondary account')" placeholder="{{ __('Select backup account') }}">
-                    @foreach ($this->accounts as $account)
-                        @if ($account->id !== $primaryAccountId)
-                            <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
-                        @endif
-                    @endforeach
-                </flux:select>
+                @if ($type === \App\PaymentMethodType::Composite->value)
+                    <div>
+                        <flux:select wire:model.live="secondaryAccountId" :label="__('Backup / Secondary Account')" placeholder="{{ __('Select backup account') }}">
+                            @foreach ($this->accounts as $account)
+                                @if ($account->id !== $primaryAccountId)
+                                    <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                                @endif
+                            @endforeach
+                        </flux:select>
+                        <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Covers whatever the primary account cannot.') }}</flux:text>
+                    </div>
 
-                <div class="flex items-center pt-6">
-                    <flux:checkbox wire:model="autoSplitBalance" :label="__('Auto-split from primary balance first')" />
+                    <div class="flex flex-col justify-center pt-2">
+                        <flux:checkbox wire:model="autoSplitBalance" :label="__('Auto-split from primary balance first')" />
+                        <flux:text size="xs" class="ms-6 text-zinc-500">{{ __('Automatically calculates split based on live balance.') }}</flux:text>
+                    </div>
+                @endif
+
+                <div>
+                    <flux:input wire:model="description" :label="__('Description / Notes')" placeholder="{{ __('Optional notes') }}" />
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Any extra details for your reference.') }}</flux:text>
+                </div>
+            </div>
+
+            {{-- Live visual split rule explanation --}}
+            @if ($type === \App\PaymentMethodType::Composite->value && $primaryAccountId && $secondaryAccountId)
+                @php
+                    $pAccount = $this->accounts->firstWhere('id', $primaryAccountId);
+                    $sAccount = $this->accounts->firstWhere('id', $secondaryAccountId);
+                @endphp
+                <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                    <span class="font-semibold text-zinc-900 dark:text-zinc-100">{{ __('Active Split Rule Preview:') }}</span>
+                    {{ __('When paying with this method, Wonko first uses up to :balance :currency from **:primary**. Any remaining amount is debited from **:secondary**.', [
+                        'balance' => $pAccount?->balance() ?? '0.00',
+                        'currency' => $pAccount?->currency ?? '',
+                        'primary' => $pAccount?->name ?? 'Primary',
+                        'secondary' => $sAccount?->name ?? 'Secondary',
+                    ]) }}
                 </div>
             @endif
 
-            <flux:input wire:model="description" :label="__('Description')" placeholder="{{ __('Optional notes') }}" />
-
-            <div class="flex items-end">
+            <div class="flex justify-end pt-2">
                 <flux:button type="submit" variant="primary">{{ $editingPaymentMethodId ? __('Save changes') : __('Add payment method') }}</flux:button>
             </div>
         </form>
@@ -201,7 +264,7 @@ new #[Title('Payment Methods')] class extends Component {
                         <th class="py-3 pe-4 font-medium">{{ __('Type') }}</th>
                         <th class="py-3 pe-4 font-medium">{{ __('Primary Account') }}</th>
                         <th class="py-3 pe-4 font-medium">{{ __('Backup Account') }}</th>
-                        <th class="py-3 pe-4 font-medium">{{ __('Auto-split') }}</th>
+                        <th class="py-3 pe-4 font-medium">{{ __('Split Logic') }}</th>
                         <th class="py-3 text-end font-medium">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
@@ -216,26 +279,28 @@ new #[Title('Payment Methods')] class extends Component {
                             </td>
                             <td class="py-3 pe-4">
                                 <flux:badge size="sm" :variant="$method->type === \App\PaymentMethodType::Composite ? 'solid' : 'subtle'">
-                                    {{ $method->type === \App\PaymentMethodType::Composite ? __('Composite') : __('Single') }}
+                                    {{ $method->type === \App\PaymentMethodType::Composite ? __('Composite Split') : __('Single Account') }}
                                 </flux:badge>
                             </td>
                             <td class="py-3 pe-4">
-                                {{ $method->primaryAccount?->name ?? __('None') }} ({{ $method->primaryAccount?->currency ?? '—' }})
+                                <span class="font-medium">{{ $method->primaryAccount?->name ?? __('None') }}</span>
+                                <span class="text-xs text-zinc-500">({{ $method->primaryAccount?->currency ?? '—' }})</span>
                             </td>
                             <td class="py-3 pe-4">
                                 @if ($method->secondaryAccount)
-                                    {{ $method->secondaryAccount->name }} ({{ $method->secondaryAccount->currency }})
+                                    <span class="font-medium">{{ $method->secondaryAccount->name }}</span>
+                                    <span class="text-xs text-zinc-500">({{ $method->secondaryAccount->currency }})</span>
                                 @else
-                                    <span class="text-zinc-500">{{ __('None') }}</span>
+                                    <span class="text-zinc-400">—</span>
                                 @endif
                             </td>
                             <td class="py-3 pe-4">
                                 @if ($method->type === \App\PaymentMethodType::Composite)
-                                    <span class="{{ $method->auto_split_balance ? 'text-green-600 dark:text-green-400' : 'text-zinc-500' }}">
-                                        {{ $method->auto_split_balance ? __('Enabled') : __('Manual') }}
+                                    <span class="{{ $method->auto_split_balance ? 'font-medium text-green-600 dark:text-green-400' : 'text-zinc-500' }}">
+                                        {{ $method->auto_split_balance ? __('Auto balance split') : __('Manual split') }}
                                     </span>
                                 @else
-                                    <span class="text-zinc-500">—</span>
+                                    <span class="text-zinc-400">—</span>
                                 @endif
                             </td>
                             <td class="py-3 text-end">
@@ -247,7 +312,10 @@ new #[Title('Payment Methods')] class extends Component {
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="py-6 text-center text-zinc-500">{{ __('No payment methods created yet.') }}</td>
+                            <td colspan="6" class="py-8 text-center text-zinc-500">
+                                <div>{{ __('No payment methods created yet.') }}</div>
+                                <div class="mt-1 text-xs text-zinc-400">{{ __('Create one above to connect composite accounts like PayPal.') }}</div>
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>

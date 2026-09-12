@@ -136,7 +136,7 @@ new #[Title('Categories')] class extends Component {
 <section class="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-6 lg:p-10">
     <header class="flex flex-col gap-2 border-b border-zinc-200 pb-6 dark:border-zinc-700">
         <flux:heading size="xl">{{ __('Categories') }}</flux:heading>
-        <flux:subheading>{{ __('Organize expenses and income with names and colors.') }}</flux:subheading>
+        <flux:subheading>{{ __('Organize your expenses and income with distinct names and visual accent colors.') }}</flux:subheading>
     </header>
 
     <section class="space-y-5">
@@ -147,10 +147,35 @@ new #[Title('Categories')] class extends Component {
             @endif
         </div>
 
-        <form wire:submit="saveCategory" class="flex flex-col gap-4 sm:flex-row sm:items-end">
-            <flux:input wire:model="categoryName" :label="__('Name')" placeholder="{{ __('Category name') }}" />
-            <flux:input wire:model="categoryColor" :label="__('Color')" type="color" />
-            <flux:button type="submit" variant="primary">{{ $editingCategoryId ? __('Save changes') : __('Add category') }}</flux:button>
+        <form wire:submit="saveCategory" class="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <flux:input wire:model="categoryName" :label="__('Category Name')" placeholder="{{ __('e.g. Groceries, Entertainment, Housing') }}" />
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('A clear title to group related transactions.') }}</flux:text>
+                </div>
+                <div>
+                    <flux:input wire:model="categoryColor" :label="__('Accent Color')" type="color" />
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Color tag displayed on transactions and charts.') }}</flux:text>
+                </div>
+            </div>
+
+            {{-- Color presets --}}
+            <div class="flex items-center gap-2 pt-1">
+                <span class="text-xs text-zinc-500">{{ __('Presets:') }}</span>
+                @foreach (['#64748B', '#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#3B82F6', '#8B5CF6', '#EC4899'] as $color)
+                    <button
+                        type="button"
+                        class="size-5 rounded-full border border-black/10 transition-transform hover:scale-110 focus:outline-none"
+                        style="background-color: {{ $color }}"
+                        wire:click="$set('categoryColor', '{{ $color }}')"
+                        aria-label="{{ __('Select color :color', ['color' => $color]) }}"
+                    ></button>
+                @endforeach
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <flux:button type="submit" variant="primary">{{ $editingCategoryId ? __('Save changes') : __('Add category') }}</flux:button>
+            </div>
         </form>
     </section>
 
@@ -160,8 +185,10 @@ new #[Title('Categories')] class extends Component {
         <div class="divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
             @forelse ($this->categories as $category)
                 <div wire:key="category-{{ $category->id }}" class="flex items-center gap-4 py-3">
-                    <span class="size-4 shrink-0 rounded-full border border-black/10" style="background-color: {{ $category->color }}" aria-hidden="true"></span>
-                    <flux:text class="min-w-0 flex-1 truncate font-medium">{{ $category->name }}</flux:text>
+                    <span class="size-4 shrink-0 rounded-full border border-black/10 shadow-sm" style="background-color: {{ $category->color }}" aria-hidden="true"></span>
+                    <div class="min-w-0 flex-1">
+                        <flux:text class="truncate font-medium">{{ $category->name }}</flux:text>
+                    </div>
                     <div class="flex shrink-0 gap-1">
                         <flux:button variant="ghost" size="sm" icon="chevron-up" aria-label="{{ __('Move category up') }}" wire:click="moveCategory({{ $category->id }}, 'up')" />
                         <flux:button variant="ghost" size="sm" icon="chevron-down" aria-label="{{ __('Move category down') }}" wire:click="moveCategory({{ $category->id }}, 'down')" />
@@ -170,7 +197,10 @@ new #[Title('Categories')] class extends Component {
                     </div>
                 </div>
             @empty
-                <flux:text class="py-4">{{ __('No categories yet.') }}</flux:text>
+                <div class="py-8 text-center text-sm text-zinc-500">
+                    <div>{{ __('No categories yet.') }}</div>
+                    <div class="mt-1 text-xs text-zinc-400">{{ __('Add categories like Groceries, Salary, Utilities to organize spending.') }}</div>
+                </div>
             @endforelse
         </div>
     </section>

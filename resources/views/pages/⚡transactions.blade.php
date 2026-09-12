@@ -618,159 +618,207 @@ new #[Title('Transactions')] class extends Component {
 <section class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 p-6 lg:p-10">
     <header class="flex flex-col gap-2 border-b border-zinc-200 pb-6 dark:border-zinc-700">
         <flux:heading size="xl">{{ __('Transactions') }}</flux:heading>
-        <flux:subheading>{{ __('Record income, expenses, transfers, and composite split payments.') }}</flux:subheading>
+        <flux:subheading>{{ __('Record income, expenses, bank transfers, and split payment methods.') }}</flux:subheading>
     </header>
 
-    <section class="space-y-5">
-        <div class="flex items-center justify-between gap-4">
-            <flux:heading size="lg">{{ $editingTransactionId ? __('Edit transaction') : __('New transaction') }}</flux:heading>
-            @if ($editingTransactionId)
-                <flux:button variant="ghost" size="sm" wire:click="resetTransactionForm">{{ __('Cancel') }}</flux:button>
-            @endif
+    @if ($this->accounts->isEmpty())
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950/50">
+            <div class="font-semibold text-amber-900 dark:text-amber-100">{{ __('No accounts available') }}</div>
+            <flux:text size="sm" class="mt-1 text-amber-800 dark:text-amber-200">
+                {{ __('Before recording transactions, you need to add at least one account.') }}
+            </flux:text>
+            <div class="mt-3">
+                <flux:button :href="route('accounts.index')" size="sm" variant="primary" wire:navigate>{{ __('Create an account &rarr;') }}</flux:button>
+            </div>
         </div>
-
-        <form wire:submit="saveTransaction" class="space-y-4">
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <flux:select wire:model.live="transactionType" :label="__('Type')">
-                    <flux:select.option value="expense">{{ __('Expense') }}</flux:select.option>
-                    <flux:select.option value="income">{{ __('Income') }}</flux:select.option>
-                    <flux:select.option value="transfer">{{ __('Transfer') }}</flux:select.option>
-                </flux:select>
-
-                @if ($transactionType === 'expense')
-                    <flux:select wire:model.live="paymentSourceMode" :label="__('Payment source')">
-                        <flux:select.option value="account">{{ __('Single Account') }}</flux:select.option>
-                        @if ($this->paymentMethods->isNotEmpty())
-                            <flux:select.option value="payment_method">{{ __('Payment Method') }}</flux:select.option>
-                        @endif
-                        <flux:select.option value="split">{{ __('Custom Split') }}</flux:select.option>
-                    </flux:select>
+    @else
+        <section class="space-y-5">
+            <div class="flex items-center justify-between gap-4">
+                <flux:heading size="lg">{{ $editingTransactionId ? __('Edit transaction') : __('New transaction') }}</flux:heading>
+                @if ($editingTransactionId)
+                    <flux:button variant="ghost" size="sm" wire:click="resetTransactionForm">{{ __('Cancel') }}</flux:button>
                 @endif
-
-                @if ($transactionType === 'expense' && $paymentSourceMode === 'payment_method')
-                    <flux:select wire:model.live="paymentMethodId" :label="__('Payment Method')" placeholder="{{ __('Select payment method') }}">
-                        @foreach ($this->paymentMethods as $method)
-                            <flux:select.option value="{{ $method->id }}">{{ $method->name }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                @elseif ($transactionType !== 'transfer')
-                    <flux:select wire:model.live="transactionAccountId" :label="$paymentSourceMode === 'split' ? __('Primary Account') : __('Account')" placeholder="{{ __('Choose an account') }}">
-                        @foreach ($this->accounts as $account)
-                            <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                @endif
-
-                <flux:input wire:model.live.debounce.300ms="transactionAmount" :label="__('Total Amount')" type="number" step="0.0001" min="0" />
-                <flux:input wire:model.live="transactionCurrency" :label="__('Currency')" maxlength="3" class="uppercase" />
             </div>
 
-            {{-- Split breakdown for Payment Method or Custom Split --}}
-            @if ($transactionType === 'expense' && in_array($paymentSourceMode, ['payment_method', 'split'], true))
-                <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900">
-                    <div class="mb-3 flex items-center justify-between">
-                        <flux:heading size="sm">{{ __('Split Allocation Across Accounts') }}</flux:heading>
-                        @if ($paymentSourceMode === 'payment_method' && $paymentMethodId)
-                            <flux:button size="xs" variant="ghost" wire:click="recalculateSplit">{{ __('Recalculate balance split') }}</flux:button>
-                        @endif
+            <form wire:submit="saveTransaction" class="space-y-5 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+                {{-- Row 1: Type & Payment Source Mode --}}
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                        <flux:select wire:model.live="transactionType" :label="__('1. Transaction Type')">
+                            <flux:select.option value="expense">{{ __('Expense (Money out)') }}</flux:select.option>
+                            <flux:select.option value="income">{{ __('Income (Money in)') }}</flux:select.option>
+                            <flux:select.option value="transfer">{{ __('Transfer between accounts') }}</flux:select.option>
+                        </flux:select>
                     </div>
 
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div class="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
-                            <flux:select wire:model.live="transactionAccountId" :label="__('Primary account')" :disabled="$paymentSourceMode === 'payment_method'">
-                                @foreach ($this->accounts as $account)
-                                    <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
+                    @if ($transactionType === 'expense')
+                        <div>
+                            <flux:select wire:model.live="paymentSourceMode" :label="__('2. Payment Source')">
+                                <flux:select.option value="account">{{ __('Single Account (Direct)') }}</flux:select.option>
+                                @if ($this->paymentMethods->isNotEmpty())
+                                    <flux:select.option value="payment_method">{{ __('Composite Payment Method') }}</flux:select.option>
+                                @endif
+                                <flux:select.option value="split">{{ __('Custom Split across 2 Accounts') }}</flux:select.option>
+                            </flux:select>
+                        </div>
+                    @endif
+
+                    @if ($transactionType === 'expense' && $paymentSourceMode === 'payment_method')
+                        <div class="sm:col-span-2">
+                            <flux:select wire:model.live="paymentMethodId" :label="__('Select Payment Method')" placeholder="{{ __('Choose method (e.g. PayPal)') }}">
+                                @foreach ($this->paymentMethods as $method)
+                                    <flux:select.option value="{{ $method->id }}">{{ $method->name }}</flux:select.option>
                                 @endforeach
                             </flux:select>
-                            <flux:input wire:model="splitPrimaryAmount" :label="__('Amount from primary account')" type="number" step="0.0001" min="0" />
+                        </div>
+                    @elseif ($transactionType !== 'transfer')
+                        <div>
+                            <flux:select wire:model.live="transactionAccountId" :label="$paymentSourceMode === 'split' ? __('Primary Account') : __('Account')" placeholder="{{ __('Choose an account') }}">
+                                @foreach ($this->accounts as $account)
+                                    <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                        </div>
+                    @endif
 
-                            @if ($transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
-                                <flux:input wire:model="splitPrimaryAccountAmount" :label="__('Primary account amount')" type="number" step="0.0001" min="0" />
+                    <div>
+                        <flux:input wire:model.live.debounce.300ms="transactionAmount" :label="__('Amount')" type="number" step="0.0001" min="0" placeholder="0.00" />
+                    </div>
+
+                    <div>
+                        <flux:input wire:model.live="transactionCurrency" :label="__('Currency')" maxlength="3" class="uppercase" placeholder="EUR" />
+                    </div>
+                </div>
+
+                {{-- Split breakdown allocation box --}}
+                @if ($transactionType === 'expense' && in_array($paymentSourceMode, ['payment_method', 'split'], true))
+                    <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+                        <div class="mb-3 flex items-center justify-between">
+                            <div>
+                                <flux:heading size="sm">{{ __('Split Distribution') }}</flux:heading>
+                                <flux:text size="xs" class="text-zinc-500">
+                                    {{ __('Specify how much to debit from each account. The sum must match the total amount.') }}
+                                </flux:text>
+                            </div>
+                            @if ($paymentSourceMode === 'payment_method' && $paymentMethodId)
+                                <flux:button size="xs" variant="ghost" wire:click="recalculateSplit">{{ __('Recalculate split') }}</flux:button>
                             @endif
                         </div>
 
-                        <div class="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
-                            <flux:select wire:model.live="splitSecondaryAccountId" :label="__('Secondary / Backup account')" :disabled="$paymentSourceMode === 'payment_method'">
-                                @foreach ($this->accounts as $account)
-                                    @if ($account->id !== $transactionAccountId)
-                                        <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
-                                    @endif
-                                @endforeach
-                            </flux:select>
-                            <flux:input wire:model="splitSecondaryAmount" :label="__('Amount from secondary account')" type="number" step="0.0001" min="0" />
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div class="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
+                                <flux:select wire:model.live="transactionAccountId" :label="__('Primary Account')" :disabled="$paymentSourceMode === 'payment_method'">
+                                    @foreach ($this->accounts as $account)
+                                        <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                                    @endforeach
+                                </flux:select>
+                                <flux:input wire:model="splitPrimaryAmount" :label="__('Amount from Primary')" type="number" step="0.0001" min="0" />
 
-                            @if ($splitSecondaryAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $splitSecondaryAccountId)?->currency ?? ''))
-                                <flux:input wire:model="splitSecondaryAccountAmount" :label="__('Secondary account amount')" type="number" step="0.0001" min="0" />
-                            @endif
+                                @if ($transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
+                                    <div class="space-y-1">
+                                        <flux:input wire:model="splitPrimaryAccountAmount" :label="__('Actual amount charged to Primary (:curr)', ['curr' => $this->accounts->firstWhere('id', $transactionAccountId)?->currency])" type="number" step="0.0001" min="0" />
+                                        <flux:text size="xs" class="text-zinc-500">{{ __('No auto-FX: enter the exact statement amount.') }}</flux:text>
+                                    </div>
+                                @endif
+                            </div>
+
+                            <div class="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
+                                <flux:select wire:model.live="splitSecondaryAccountId" :label="__('Secondary / Backup Account')" :disabled="$paymentSourceMode === 'payment_method'">
+                                    @foreach ($this->accounts as $account)
+                                        @if ($account->id !== $transactionAccountId)
+                                            <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                                        @endif
+                                    @endforeach
+                                </flux:select>
+                                <flux:input wire:model="splitSecondaryAmount" :label="__('Amount from Secondary')" type="number" step="0.0001" min="0" />
+
+                                @if ($splitSecondaryAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $splitSecondaryAccountId)?->currency ?? ''))
+                                    <div class="space-y-1">
+                                        <flux:input wire:model="splitSecondaryAccountAmount" :label="__('Actual amount charged to Secondary (:curr)', ['curr' => $this->accounts->firstWhere('id', $splitSecondaryAccountId)?->currency])" type="number" step="0.0001" min="0" />
+                                        <flux:text size="xs" class="text-zinc-500">{{ __('No auto-FX: enter the exact statement amount.') }}</flux:text>
+                                    </div>
+                                @endif
+                            </div>
                         </div>
                     </div>
-                </div>
-            @endif
-
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                @if ($transactionType !== TransactionType::Transfer->value)
-                    <flux:select wire:model="transactionCategoryId" :label="__('Category')" placeholder="{{ __('No category') }}">
-                        <flux:select.option value="">{{ __('No category') }}</flux:select.option>
-                        @foreach ($this->categories as $category)
-                            <flux:select.option value="{{ $category->id }}">{{ $category->name }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
                 @endif
 
-                @if ($transactionType === 'expense' && $paymentSourceMode === 'account' && $transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
-                    <flux:input wire:model="transactionAccountAmount" :label="__('Amount on account')" type="number" step="0.0001" min="0" />
-                @elseif ($transactionType === 'income' && $transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
-                    <flux:input wire:model="transactionAccountAmount" :label="__('Amount on account')" type="number" step="0.0001" min="0" />
-                @endif
-
-                @if ($transactionType === TransactionType::Transfer->value)
-                    <flux:select wire:model.live="transactionAccountId" :label="__('Source account')" placeholder="{{ __('Choose source account') }}">
-                        @foreach ($this->accounts as $account)
-                            <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
-                        @endforeach
-                    </flux:select>
-
-                    <flux:select wire:model.live="transferDestinationAccountId" :label="__('Destination account')" placeholder="{{ __('Choose destination account') }}">
-                        @foreach ($this->accounts as $account)
-                            @if ($account->id !== $transactionAccountId)
-                                <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
-                            @endif
-                        @endforeach
-                    </flux:select>
-
-                    <flux:input wire:model="transferDestinationAmount" :label="__('Destination amount')" type="number" step="0.0001" min="0" />
-                    <flux:input wire:model="transferDestinationCurrency" :label="__('Destination currency')" maxlength="3" class="uppercase" />
-
-                    @if ($transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
-                        <flux:input wire:model="transactionAccountAmount" :label="__('Source amount on account')" type="number" step="0.0001" min="0" />
+                {{-- Row 2: Category, Conversion, Transfer Details, Description & Date --}}
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    @if ($transactionType !== TransactionType::Transfer->value)
+                        <flux:select wire:model="transactionCategoryId" :label="__('Category')" placeholder="{{ __('No category') }}">
+                            <flux:select.option value="">{{ __('No category') }}</flux:select.option>
+                            @foreach ($this->categories as $category)
+                                <flux:select.option value="{{ $category->id }}">{{ $category->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
                     @endif
 
-                    @if ($transferDestinationAccountId && $transferDestinationCurrency !== ($this->accounts->firstWhere('id', $transferDestinationAccountId)?->currency ?? ''))
-                        <flux:input wire:model="transferDestinationAccountAmount" :label="__('Destination amount on account')" type="number" step="0.0001" min="0" />
+                    @if ($transactionType === 'expense' && $paymentSourceMode === 'account' && $transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
+                        <div>
+                            <flux:input wire:model="transactionAccountAmount" :label="__('Amount on Account (:curr)', ['curr' => $this->accounts->firstWhere('id', $transactionAccountId)?->currency])" type="number" step="0.0001" min="0" />
+                            <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Enter exact statement amount.') }}</flux:text>
+                        </div>
+                    @elseif ($transactionType === 'income' && $transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
+                        <div>
+                            <flux:input wire:model="transactionAccountAmount" :label="__('Amount on Account (:curr)', ['curr' => $this->accounts->firstWhere('id', $transactionAccountId)?->currency])" type="number" step="0.0001" min="0" />
+                            <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Enter exact credited amount.') }}</flux:text>
+                        </div>
                     @endif
-                @endif
 
-                <flux:input wire:model="transactionDescription" :label="__('Description')" placeholder="{{ __('Optional') }}" />
-                <flux:input wire:model="transactionDate" :label="__('Date')" type="date" />
+                    @if ($transactionType === TransactionType::Transfer->value)
+                        <flux:select wire:model.live="transactionAccountId" :label="__('Source Account (From)')" placeholder="{{ __('Choose source account') }}">
+                            @foreach ($this->accounts as $account)
+                                <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                            @endforeach
+                        </flux:select>
 
-                <div class="flex items-end">
-                    <flux:button type="submit" variant="primary">{{ $editingTransactionId ? __('Save changes') : __('Add transaction') }}</flux:button>
+                        <flux:select wire:model.live="transferDestinationAccountId" :label="__('Destination Account (To)')" placeholder="{{ __('Choose destination account') }}">
+                            @foreach ($this->accounts as $account)
+                                @if ($account->id !== $transactionAccountId)
+                                    <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                                @endif
+                            @endforeach
+                        </flux:select>
+
+                        <flux:input wire:model="transferDestinationAmount" :label="__('Destination Amount')" type="number" step="0.0001" min="0" />
+                        <flux:input wire:model="transferDestinationCurrency" :label="__('Destination Currency')" maxlength="3" class="uppercase" />
+
+                        @if ($transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
+                            <flux:input wire:model="transactionAccountAmount" :label="__('Source Amount on Account')" type="number" step="0.0001" min="0" />
+                        @endif
+
+                        @if ($transferDestinationAccountId && $transferDestinationCurrency !== ($this->accounts->firstWhere('id', $transferDestinationAccountId)?->currency ?? ''))
+                            <flux:input wire:model="transferDestinationAccountAmount" :label="__('Destination Amount on Account')" type="number" step="0.0001" min="0" />
+                        @endif
+                    @endif
+
+                    <flux:input wire:model="transactionDescription" :label="__('Description')" placeholder="{{ __('e.g. Groceries, Salary, Coffee') }}" />
+                    <flux:input wire:model="transactionDate" :label="__('Date')" type="date" />
+
+                    <div class="flex items-end">
+                        <flux:button type="submit" variant="primary" class="w-full">{{ $editingTransactionId ? __('Save changes') : __('Add transaction') }}</flux:button>
+                    </div>
                 </div>
-            </div>
-        </form>
-    </section>
+            </form>
+        </section>
+    @endif
 
+    {{-- History section --}}
     <section class="space-y-5">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <flux:heading size="lg">{{ __('History') }}</flux:heading>
+            <div>
+                <flux:heading size="lg">{{ __('Transaction History') }}</flux:heading>
+                <flux:text size="xs" class="text-zinc-500">{{ __('Showing recent transactions across your accounts.') }}</flux:text>
+            </div>
             <div class="grid gap-3 sm:grid-cols-2">
-                <flux:select wire:model.live="filterAccountId" :label="__('Account')" placeholder="{{ __('All accounts') }}">
+                <flux:select wire:model.live="filterAccountId" :label="__('Filter by account')" placeholder="{{ __('All accounts') }}">
                     <flux:select.option value="">{{ __('All accounts') }}</flux:select.option>
                     @foreach ($this->accounts as $account)
                         <flux:select.option value="{{ $account->id }}">{{ $account->name }}</flux:select.option>
                     @endforeach
                 </flux:select>
-                <flux:input wire:model.live.debounce.300ms="search" :label="__('Search')" placeholder="{{ __('Description') }}" />
+                <flux:input wire:model.live.debounce.300ms="search" :label="__('Search')" placeholder="{{ __('Filter by description...') }}" />
             </div>
         </div>
 
@@ -779,7 +827,7 @@ new #[Title('Transactions')] class extends Component {
                 <thead class="border-b border-zinc-200 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
                     <tr>
                         <th class="py-3 pe-4 font-medium">{{ __('Date') }}</th>
-                        <th class="py-3 pe-4 font-medium">{{ __('Description') }}</th>
+                        <th class="py-3 pe-4 font-medium">{{ __('Description & Notes') }}</th>
                         <th class="py-3 pe-4 font-medium">{{ __('Category') }}</th>
                         <th class="py-3 pe-4 font-medium">{{ __('Account / Method') }}</th>
                         <th class="py-3 pe-4 text-end font-medium">{{ __('Amount') }}</th>
@@ -789,14 +837,15 @@ new #[Title('Transactions')] class extends Component {
                 <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
                     @forelse ($this->transactions as $transaction)
                         <tr wire:key="transaction-{{ $transaction->id }}">
-                            <td class="py-3 pe-4">{{ $transaction->transaction_date->format('Y-m-d') }}</td>
+                            <td class="py-3 pe-4 text-zinc-500">{{ $transaction->transaction_date->format('Y-m-d') }}</td>
                             <td class="py-3 pe-4">
                                 <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $transaction->description ?? __('Untitled') }}</div>
                                 @if ($transaction->split_group_id)
-                                    <div class="text-xs text-zinc-500">
-                                        {{ __('Split transaction') }}
+                                    <div class="inline-flex items-center gap-1 text-xs text-zinc-500">
+                                        <flux:icon icon="arrows-pointing-out" class="size-3" />
+                                        <span>{{ __('Split') }}</span>
                                         @if ($transaction->paymentMethod)
-                                            ({{ $transaction->paymentMethod->name }})
+                                            <span>({{ $transaction->paymentMethod->name }})</span>
                                         @endif
                                     </div>
                                 @endif
@@ -808,17 +857,17 @@ new #[Title('Transactions')] class extends Component {
                                         {{ $transaction->category->name }}
                                     </span>
                                 @else
-                                    <span class="text-zinc-500">{{ __('Uncategorized') }}</span>
+                                    <span class="text-zinc-400">—</span>
                                 @endif
                             </td>
                             <td class="py-3 pe-4">
                                 @if ($transaction->type === TransactionType::Transfer)
-                                    {{ $transaction->account->name }} &rarr; {{ $transaction->relatedTransaction?->account?->name ?? __('Unknown account') }}
+                                    <span class="font-medium">{{ $transaction->account->name }}</span> &rarr; <span>{{ $transaction->relatedTransaction?->account?->name ?? __('Unknown account') }}</span>
                                 @else
-                                    {{ $transaction->account->name }}
+                                    <span class="font-medium">{{ $transaction->account->name }}</span>
                                 @endif
                             </td>
-                            <td class="py-3 pe-4 text-end {{ $transaction->type === TransactionType::Income ? 'text-green-600 dark:text-green-400' : '' }}">
+                            <td class="py-3 pe-4 text-end font-semibold {{ $transaction->type === TransactionType::Income ? 'text-green-600 dark:text-green-400' : 'text-zinc-900 dark:text-zinc-100' }}">
                                 {{ $transaction->type === TransactionType::Income ? '+' : '-' }}{{ $transaction->amountOnAccount() }} {{ $transaction->account->currency }}
                             </td>
                             <td class="py-3 text-end">
@@ -830,7 +879,10 @@ new #[Title('Transactions')] class extends Component {
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="py-6 text-center text-zinc-500">{{ __('No transactions yet.') }}</td>
+                            <td colspan="6" class="py-8 text-center text-zinc-500">
+                                <div>{{ __('No transactions found.') }}</div>
+                                <div class="mt-1 text-xs text-zinc-400">{{ __('Record your first transaction above.') }}</div>
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>

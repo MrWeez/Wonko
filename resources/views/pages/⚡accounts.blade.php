@@ -4,8 +4,8 @@ use App\AccountType;
 use App\Models\Account;
 use App\Models\Bank;
 use Flux\Flux;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -20,7 +20,7 @@ new #[Title('Accounts')] class extends Component {
 
     public string $accountCurrency = '';
 
-    public string $accountType = '';
+    public string $accountType = AccountType::Checking->value;
 
     public ?int $accountBankId = null;
 
@@ -120,9 +120,9 @@ new #[Title('Accounts')] class extends Component {
 
         $account->fill([
             'name' => $validated['accountName'],
-            'currency' => $validated['accountCurrency'],
+            'currency' => strtoupper($validated['accountCurrency']),
             'type' => $validated['accountType'],
-            'bank_id' => $validated['accountBankId'],
+            'bank_id' => $validated['accountBankId'] ?: null,
         ]);
         $account->save();
 
@@ -160,110 +160,145 @@ new #[Title('Accounts')] class extends Component {
 
     public function resetAccountForm(): void
     {
-        $this->reset('accountName', 'accountCurrency', 'accountType', 'accountBankId', 'editingAccountId');
+        $this->reset('accountName', 'accountCurrency', 'accountBankId', 'editingAccountId');
+        $this->accountType = AccountType::Checking->value;
         $this->resetValidation();
     }
 }; ?>
 
 <section class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 p-6 lg:p-10">
-        <header class="flex flex-col gap-2 border-b border-zinc-200 pb-6 dark:border-zinc-700">
-            <flux:heading size="xl">{{ __('Accounts') }}</flux:heading>
-            <flux:subheading>{{ __('Manage your banks and the accounts they contain.') }}</flux:subheading>
-        </header>
+    <header class="flex flex-col gap-2 border-b border-zinc-200 pb-6 dark:border-zinc-700">
+        <flux:heading size="xl">{{ __('Accounts & Banks') }}</flux:heading>
+        <flux:subheading>{{ __('Manage your accounts, cards, cash wallets, and bank groupings.') }}</flux:subheading>
+    </header>
 
-        <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-            <section class="space-y-5">
-                <div class="flex items-center justify-between gap-4">
+    <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        {{-- Banks Column --}}
+        <section class="space-y-5">
+            <div class="flex items-center justify-between gap-4">
+                <div>
                     <flux:heading size="lg">{{ __('Banks') }}</flux:heading>
-                    @if ($editingBankId)
-                        <flux:button variant="ghost" size="sm" wire:click="resetBankForm">{{ __('Cancel') }}</flux:button>
-                    @endif
+                    <flux:text size="xs" class="text-zinc-500">{{ __('Optional groupings (e.g. Chase, N26, Revolut).') }}</flux:text>
                 </div>
+                @if ($editingBankId)
+                    <flux:button variant="ghost" size="sm" wire:click="resetBankForm">{{ __('Cancel') }}</flux:button>
+                @endif
+            </div>
 
-                <form wire:submit="saveBank" class="space-y-4">
-                    <flux:input wire:model="bankName" :label="$editingBankId ? __('Edit bank') : __('New bank')" placeholder="{{ __('Bank name') }}" />
-                    <flux:button type="submit" variant="primary">{{ $editingBankId ? __('Save changes') : __('Add bank') }}</flux:button>
-                </form>
+            <form wire:submit="saveBank" class="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <flux:input wire:model="bankName" :label="$editingBankId ? __('Edit bank') : __('New bank')" placeholder="{{ __('e.g. Deutsche Bank') }}" />
+                <div class="flex justify-end">
+                    <flux:button type="submit" variant="primary" size="sm">{{ $editingBankId ? __('Save') : __('Add bank') }}</flux:button>
+                </div>
+            </form>
 
-                <div class="divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
-                    @forelse ($this->banks as $bank)
-                        <div wire:key="bank-{{ $bank->id }}" class="flex items-center justify-between gap-3 py-3">
-                            <div class="min-w-0">
-                                <flux:text class="truncate font-medium">{{ $bank->name }}</flux:text>
-                                <flux:text size="sm">{{ trans_choice(':count account|:count accounts', $bank->accounts_count, ['count' => $bank->accounts_count]) }}</flux:text>
-                            </div>
-                            <div class="flex shrink-0 gap-1">
-                                <flux:button variant="ghost" size="sm" icon="pencil" aria-label="{{ __('Edit bank') }}" wire:click="editBank({{ $bank->id }})" />
-                                <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Delete bank') }}" wire:click="deleteBank({{ $bank->id }})" />
-                            </div>
+            <div class="divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
+                @forelse ($this->banks as $bank)
+                    <div wire:key="bank-{{ $bank->id }}" class="flex items-center justify-between gap-3 py-3">
+                        <div class="min-w-0">
+                            <flux:text class="truncate font-medium">{{ $bank->name }}</flux:text>
+                            <flux:text size="xs" class="text-zinc-500">{{ trans_choice(':count account|:count accounts', $bank->accounts_count, ['count' => $bank->accounts_count]) }}</flux:text>
                         </div>
-                    @empty
-                        <flux:text class="py-4">{{ __('No banks yet.') }}</flux:text>
-                    @endforelse
-                </div>
-            </section>
+                        <div class="flex shrink-0 gap-1">
+                            <flux:button variant="ghost" size="sm" icon="pencil" aria-label="{{ __('Edit bank') }}" wire:click="editBank({{ $bank->id }})" />
+                            <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Delete bank') }}" wire:click="deleteBank({{ $bank->id }})" />
+                        </div>
+                    </div>
+                @empty
+                    <div class="py-4 text-xs text-zinc-400">{{ __('No banks created. You can still create standalone accounts.') }}</div>
+                @endforelse
+            </div>
+        </section>
 
-            <section class="space-y-5">
-                <div class="flex items-center justify-between gap-4">
+        {{-- Accounts Column --}}
+        <section class="space-y-5">
+            <div class="flex items-center justify-between gap-4">
+                <div>
                     <flux:heading size="lg">{{ __('Accounts') }}</flux:heading>
-                    @if ($editingAccountId)
-                        <flux:button variant="ghost" size="sm" wire:click="resetAccountForm">{{ __('Cancel') }}</flux:button>
-                    @endif
+                    <flux:text size="xs" class="text-zinc-500">{{ __('Your checking, savings, credit cards, and cash wallets.') }}</flux:text>
+                </div>
+                @if ($editingAccountId)
+                    <flux:button variant="ghost" size="sm" wire:click="resetAccountForm">{{ __('Cancel') }}</flux:button>
+                @endif
+            </div>
+
+            <form wire:submit="saveAccount" class="grid gap-4 rounded-xl border border-zinc-200 bg-white p-5 sm:grid-cols-2 dark:border-zinc-700 dark:bg-zinc-900">
+                <div>
+                    <flux:input wire:model="accountName" :label="$editingAccountId ? __('Edit account name') : __('Account name')" placeholder="{{ __('e.g. Daily Checking, Visa Card') }}" />
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Descriptive name for this account.') }}</flux:text>
                 </div>
 
-                <form wire:submit="saveAccount" class="grid gap-4 sm:grid-cols-2">
-                    <flux:input wire:model="accountName" :label="$editingAccountId ? __('Edit account') : __('New account')" placeholder="{{ __('Account name') }}" />
-                    <flux:input wire:model="accountCurrency" :label="__('Currency')" placeholder="EUR" maxlength="3" class="uppercase" />
+                <div>
+                    <flux:input wire:model="accountCurrency" :label="__('Currency (ISO code)')" placeholder="EUR" maxlength="3" class="uppercase" />
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('3-letter code (EUR, USD, GBP).') }}</flux:text>
+                </div>
 
-                    <flux:select wire:model="accountType" :label="__('Type')" placeholder="{{ __('Choose a type') }}">
+                <div>
+                    <flux:select wire:model="accountType" :label="__('Account Type')">
                         @foreach (AccountType::cases() as $type)
                             <flux:select.option value="{{ $type->value }}">{{ __(ucfirst($type->value)) }}</flux:select.option>
                         @endforeach
                     </flux:select>
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Checking, Savings, Card, or Cash.') }}</flux:text>
+                </div>
 
-                    <flux:select wire:model="accountBankId" :label="__('Bank')" placeholder="{{ __('No bank') }}">
-                        <flux:select.option value="">{{ __('No bank') }}</flux:select.option>
+                <div>
+                    <flux:select wire:model="accountBankId" :label="__('Bank (Optional)')" placeholder="{{ __('Standalone / No bank') }}">
+                        <flux:select.option value="">{{ __('Standalone / No bank') }}</flux:select.option>
                         @foreach ($this->banks as $bank)
                             <flux:select.option value="{{ $bank->id }}">{{ $bank->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
-
-                    <div class="sm:col-span-2">
-                        <flux:button type="submit" variant="primary">{{ $editingAccountId ? __('Save changes') : __('Add account') }}</flux:button>
-                    </div>
-                </form>
-
-                <div class="overflow-x-auto border-y border-zinc-200 dark:border-zinc-700">
-                    <table class="w-full text-start text-sm">
-                        <thead class="border-b border-zinc-200 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                            <tr>
-                                <th class="py-3 pe-4 font-medium">{{ __('Account') }}</th>
-                                <th class="py-3 pe-4 font-medium">{{ __('Bank') }}</th>
-                                <th class="py-3 pe-4 font-medium">{{ __('Currency') }}</th>
-                                <th class="py-3 text-end font-medium">{{ __('Actions') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                            @forelse ($this->accounts as $account)
-                                <tr wire:key="account-{{ $account->id }}">
-                                    <td class="py-3 pe-4 font-medium">{{ $account->name }}</td>
-                                    <td class="py-3 pe-4">{{ $account->bank?->name ?? __('Unassigned') }}</td>
-                                    <td class="py-3 pe-4">{{ $account->currency }}</td>
-                                    <td class="py-3 text-end">
-                                        <div class="flex justify-end gap-1">
-                                            <flux:button variant="ghost" size="sm" icon="pencil" aria-label="{{ __('Edit account') }}" wire:click="editAccount({{ $account->id }})" />
-                                            <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Delete account') }}" wire:click="deleteAccount({{ $account->id }})" />
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="4" class="py-6 text-center text-zinc-500">{{ __('No accounts yet.') }}</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Groups related accounts together.') }}</flux:text>
                 </div>
-            </section>
-        </div>
+
+                <div class="flex justify-end sm:col-span-2">
+                    <flux:button type="submit" variant="primary">{{ $editingAccountId ? __('Save changes') : __('Add account') }}</flux:button>
+                </div>
+            </form>
+
+            <div class="overflow-x-auto border-y border-zinc-200 dark:border-zinc-700">
+                <table class="w-full text-start text-sm">
+                    <thead class="border-b border-zinc-200 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                        <tr>
+                            <th class="py-3 pe-4 font-medium">{{ __('Account') }}</th>
+                            <th class="py-3 pe-4 font-medium">{{ __('Type & Bank') }}</th>
+                            <th class="py-3 pe-4 text-end font-medium">{{ __('Live Balance') }}</th>
+                            <th class="py-3 text-end font-medium">{{ __('Actions') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                        @forelse ($this->accounts as $account)
+                            <tr wire:key="account-{{ $account->id }}">
+                                <td class="py-3 pe-4">
+                                    <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $account->name }}</div>
+                                    <div class="text-xs text-zinc-500">{{ $account->currency }}</div>
+                                </td>
+                                <td class="py-3 pe-4">
+                                    <div class="text-zinc-800 dark:text-zinc-200">{{ __(ucfirst($account->type->value)) }}</div>
+                                    <div class="text-xs text-zinc-500">{{ $account->bank?->name ?? __('No bank') }}</div>
+                                </td>
+                                <td class="py-3 pe-4 text-end font-semibold text-zinc-900 dark:text-zinc-100">
+                                    {{ number_format((float) $account->balance(), 2) }} {{ $account->currency }}
+                                </td>
+                                <td class="py-3 text-end">
+                                    <div class="flex justify-end gap-1">
+                                        <flux:button variant="ghost" size="sm" icon="pencil" aria-label="{{ __('Edit account') }}" wire:click="editAccount({{ $account->id }})" />
+                                        <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Delete account') }}" wire:click="deleteAccount({{ $account->id }})" />
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="py-8 text-center text-zinc-500">
+                                    <div>{{ __('No accounts yet.') }}</div>
+                                    <div class="mt-1 text-xs text-zinc-400">{{ __('Add your first account using the form above.') }}</div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
 </section>
