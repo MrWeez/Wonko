@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Models\Subscription;
 use App\Models\SubscriptionOccurrence;
 use App\Models\Transaction;
+use App\Notifications\SubscriptionDueNotification;
 use App\TransactionType;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -60,6 +61,8 @@ class ProcessDueSubscriptions
                                 'paid_at' => now(),
                                 'notes' => 'Automatically posted',
                             ])->save();
+
+                            $subscription->user->notify(new SubscriptionDueNotification($subscription, $occurrence));
 
                             $processed++;
                         }

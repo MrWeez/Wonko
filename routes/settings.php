@@ -11,6 +11,7 @@ Route::middleware(['auth', EnsurePasswordChange::class])->group(function () {
 
 Route::middleware(array_filter(['auth', config('auth.email_verification_required') ? 'verified' : null, EnsurePasswordChange::class]))->group(function () {
     Route::livewire('settings/appearance', 'pages::settings.appearance')->name('appearance.edit');
+    Route::livewire('settings/notifications', 'pages::settings.notifications')->name('notifications.edit');
 
     Route::livewire('settings/security', 'pages::settings.security')
         ->middleware([

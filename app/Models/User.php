@@ -27,11 +27,12 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $two_factor_confirmed_at
  * @property Carbon|null $locked_at
  * @property bool $must_change_password
+ * @property array<string, bool>|null $notification_preferences
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'email_verified_at'])]
+#[Fillable(['name', 'email', 'password', 'email_verified_at', 'notification_preferences'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
@@ -50,7 +51,37 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'password' => 'hashed',
             'locked_at' => 'datetime',
             'must_change_password' => 'boolean',
+            'notification_preferences' => 'array',
         ];
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    public function notificationPreferences(): array
+    {
+        return array_replace([
+            'database' => true,
+            'email' => false,
+            'webhook' => false,
+            'discord' => false,
+            'telegram' => false,
+        ], $this->notification_preferences ?? []);
+    }
+
+    public function notificationChannelEnabled(string $channel): bool
+    {
+        return $this->notificationPreferences()[$channel] ?? false;
+    }
+
+    /**
+     * @param  array<string, bool>  $preferences
+     */
+    public function setNotificationPreferences(array $preferences): void
+    {
+        $this->forceFill([
+            'notification_preferences' => array_replace($this->notificationPreferences(), $preferences),
+        ])->save();
     }
 
     /**
