@@ -3,7 +3,9 @@
 use App\Models\Account;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Notifications\SubscriptionDueNotification;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
 test('users can update notification channel preferences', function () {
@@ -83,4 +85,52 @@ test('channel credentials are encrypted at rest and can be updated', function ()
         ->and($configurations['telegram']['chat_id'])->toBe('-100123')
         ->and($configurations['telegram']['message_thread_id'])->toBe(42);
     expect($stored->getRawOriginal('notification_channel_config'))->not->toContain('secret-value');
+});
+
+test('auto-post delivers the webhook payload with its configured secret', function () {
+    Http::fake();
+
+    $user = User::factory()->create();
+    $user->setNotificationPreferences(['database' => false, 'webhook' => true]);
+    $user->setNotificationChannelConfigurations([
+        'webhook' => [
+            'url' => 'https://example.test/wonko',
+            'secret' => 'webhook-secret',
+        ],
+    ]);
+
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    Subscription::factory()->forAccount($account)->create([
+        'name' => 'Webhook plan',
+        'next_due_date' => now()->subDay()->toDateString(),
+        'auto_post' => true,
+    ]);
+
+    $this->artisan('subscriptions:post-due')->assertExitCode(0);
+
+    Http::assertSent(function ($request): bool {
+        return $request->url() === 'https://example.test/wonko'
+            && $request->header('X-Wonko-Webhook-Secret')[0] === 'webhook-secret'
+            && $request['event'] === 'subscription_due'
+            && $request['subscription']['name'] === 'Webhook plan';
+    });
+});
+
+test('notification includes email when the email channel is enabled', function () {
+    $user = User::factory()->create();
+    $user->setNotificationPreferences(['database' => false, 'email' => true]);
+    $this->actingAs($user);
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    $subscription = Subscription::factory()->forAccount($account)->create();
+    $occurrence = $subscription->occurrences()->create([
+        'user_id' => $user->id,
+        'currency' => 'EUR',
+        'amount' => '10.00',
+        'due_date' => now()->toDateString(),
+    ]);
+
+    $notification = new SubscriptionDueNotification($subscription, $occurrence);
+
+    expect($notification->via($user))->toContain('mail')
+        ->and($notification->toMail($user)->subject)->toBe('Subscription due: '.$subscription->name);
 });

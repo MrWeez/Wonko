@@ -5,7 +5,9 @@ namespace App\Notifications;
 use App\Models\Subscription;
 use App\Models\SubscriptionOccurrence;
 use App\Models\User;
+use App\Notifications\Channels\WebhookChannel;
 use Carbon\CarbonImmutable;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class SubscriptionDueNotification extends Notification
@@ -20,9 +22,34 @@ class SubscriptionDueNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return $notifiable instanceof User && $notifiable->notificationChannelEnabled('database')
-            ? ['database']
-            : [];
+        if (! $notifiable instanceof User) {
+            return [];
+        }
+
+        $channels = [];
+
+        if ($notifiable->notificationChannelEnabled('database')) {
+            $channels[] = 'database';
+        }
+
+        if ($notifiable->notificationChannelEnabled('email')) {
+            $channels[] = 'mail';
+        }
+
+        if ($notifiable->notificationChannelEnabled('webhook')) {
+            $channels[] = WebhookChannel::class;
+        }
+
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        return (new MailMessage)
+            ->subject('Subscription due: '.$this->subscription->name)
+            ->line($this->subscription->name.' is due.')
+            ->line('Amount: '.$this->occurrence->amount.' '.$this->occurrence->currency)
+            ->line('Due date: '.CarbonImmutable::parse((string) $this->occurrence->due_date)->toDateString());
     }
 
     /**
@@ -38,6 +65,26 @@ class SubscriptionDueNotification extends Notification
             'amount' => $this->occurrence->amount,
             'currency' => $this->occurrence->currency,
             'due_date' => CarbonImmutable::parse((string) $this->occurrence->due_date)->toDateString(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toWebhook(object $notifiable): array
+    {
+        return [
+            'event' => 'subscription_due',
+            'subscription' => [
+                'id' => $this->subscription->id,
+                'name' => $this->subscription->name,
+            ],
+            'occurrence' => [
+                'id' => $this->occurrence->id,
+                'amount' => $this->occurrence->amount,
+                'currency' => $this->occurrence->currency,
+                'due_date' => CarbonImmutable::parse((string) $this->occurrence->due_date)->toDateString(),
+            ],
         ];
     }
 }
