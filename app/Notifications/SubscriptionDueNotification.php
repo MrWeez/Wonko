@@ -5,6 +5,7 @@ namespace App\Notifications;
 use App\Models\Subscription;
 use App\Models\SubscriptionOccurrence;
 use App\Models\User;
+use App\Notifications\Channels\TelegramChannel;
 use App\Notifications\Channels\WebhookChannel;
 use Carbon\CarbonImmutable;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -38,6 +39,10 @@ class SubscriptionDueNotification extends Notification
 
         if ($notifiable->notificationChannelEnabled('webhook')) {
             $channels[] = WebhookChannel::class;
+        }
+
+        if ($notifiable->notificationChannelEnabled('telegram')) {
+            $channels[] = TelegramChannel::class;
         }
 
         return $channels;
@@ -86,5 +91,14 @@ class SubscriptionDueNotification extends Notification
                 'due_date' => CarbonImmutable::parse((string) $this->occurrence->due_date)->toDateString(),
             ],
         ];
+    }
+
+    public function toTelegram(object $notifiable): string
+    {
+        return implode("\n", [
+            'Subscription due: '.$this->subscription->name,
+            'Amount: '.$this->occurrence->amount.' '.$this->occurrence->currency,
+            'Due date: '.CarbonImmutable::parse((string) $this->occurrence->due_date)->toDateString(),
+        ]);
     }
 }
