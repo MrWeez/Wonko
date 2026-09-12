@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\AccountType;
 use App\TransactionType;
+use App\TransferDirection;
 use Database\Factories\AccountFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -48,10 +49,18 @@ class Account extends UserOwnedModel
     public function balance(): string
     {
         return (string) $this->transactions()
-            ->whereIn('type', [TransactionType::Expense->value, TransactionType::Income->value])
+            ->whereIn('type', [
+                TransactionType::Expense->value,
+                TransactionType::Income->value,
+                TransactionType::Transfer->value,
+            ])
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN type = ? THEN COALESCE(account_amount, amount) ELSE -COALESCE(account_amount, amount) END), 0) AS balance',
-                [TransactionType::Income->value],
+                'COALESCE(SUM(CASE WHEN type = ? OR (type = ? AND transfer_direction = ?) THEN COALESCE(account_amount, amount) ELSE -COALESCE(account_amount, amount) END), 0) AS balance',
+                [
+                    TransactionType::Income->value,
+                    TransactionType::Transfer->value,
+                    TransferDirection::Destination->value,
+                ],
             )
             ->value('balance');
     }

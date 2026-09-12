@@ -1,9 +1,11 @@
 <?php
 
 use App\TransactionType;
+use App\TransferDirection;
 use App\Models\Account;
 use App\Models\Transaction;
 use Flux\Flux;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -25,6 +27,14 @@ new #[Title('Transactions')] class extends Component {
 
     public string $transactionDate = '';
 
+    public ?int $transferDestinationAccountId = null;
+
+    public string $transferDestinationCurrency = '';
+
+    public string $transferDestinationAmount = '';
+
+    public string $transferDestinationAccountAmount = '';
+
     public ?int $editingTransactionId = null;
 
     public ?int $filterAccountId = null;
@@ -40,6 +50,13 @@ new #[Title('Transactions')] class extends Component {
         if ($account) {
             $this->transactionAccountId = $account->id;
             $this->transactionCurrency = $account->currency;
+        }
+
+        $destination = $this->accounts->first(fn (Account $candidate): bool => $candidate->id !== $account?->id);
+
+        if ($destination) {
+            $this->transferDestinationAccountId = $destination->id;
+            $this->transferDestinationCurrency = $destination->currency;
         }
     }
 
@@ -59,7 +76,12 @@ new #[Title('Transactions')] class extends Component {
     public function transactions(): Collection
     {
         return Transaction::query()
-            ->with('account')
+            ->with(['account', 'relatedTransaction.account'])
+            ->where(function ($query): void {
+                $query
+                    ->where('type', '!=', TransactionType::Transfer->value)
+                    ->orWhere('transfer_direction', TransferDirection::Source->value);
+            })
             ->when($this->filterAccountId, fn ($query) => $query->where('account_id', $this->filterAccountId))
             ->when($this->search !== '', fn ($query) => $query->where('description', 'like', '%'.$this->search.'%'))
             ->orderByDesc('transaction_date')
@@ -79,8 +101,25 @@ new #[Title('Transactions')] class extends Component {
         $this->transactionCurrency = strtoupper($currency);
     }
 
+    public function updatedTransferDestinationAccountId(?int $accountId): void
+    {
+        $this->transferDestinationCurrency = Account::query()->find($accountId)?->currency ?? '';
+        $this->transferDestinationAccountAmount = '';
+    }
+
+    public function updatedTransferDestinationCurrency(string $currency): void
+    {
+        $this->transferDestinationCurrency = strtoupper($currency);
+    }
+
     public function saveTransaction(): void
     {
+        if ($this->transactionType === TransactionType::Transfer->value) {
+            $this->saveTransfer();
+
+            return;
+        }
+
         $account = Account::query()->findOrFail($this->transactionAccountId);
 
         $rules = [
@@ -123,6 +162,83 @@ new #[Title('Transactions')] class extends Component {
         Flux::toast(variant: 'success', text: __('Transaction saved.'));
     }
 
+    public function saveTransfer(): void
+    {
+        $sourceAccount = Account::query()->findOrFail($this->transactionAccountId);
+        $destinationAccount = Account::query()->findOrFail($this->transferDestinationAccountId);
+
+        $rules = [
+            'transactionAccountId' => ['required', Rule::exists('accounts', 'id')->where(fn ($query) => $query->where('user_id', auth()->id()))],
+            'transferDestinationAccountId' => [
+                'required',
+                'different:transactionAccountId',
+                Rule::exists('accounts', 'id')->where(fn ($query) => $query->where('user_id', auth()->id())),
+            ],
+            'transactionDescription' => ['nullable', 'string', 'max:255'],
+            'transactionCurrency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
+            'transactionAmount' => ['required', 'numeric', 'gt:0', 'decimal:0,4'],
+            'transferDestinationCurrency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
+            'transferDestinationAmount' => ['required', 'numeric', 'gt:0', 'decimal:0,4'],
+            'transactionDate' => ['required', 'date'],
+        ];
+
+        $rules['transactionAccountAmount'] = $this->transactionCurrency !== $sourceAccount->currency
+            ? ['required', 'numeric', 'gt:0', 'decimal:0,4']
+            : ['nullable', 'numeric', 'gt:0', 'decimal:0,4'];
+        $rules['transferDestinationAccountAmount'] = $this->transferDestinationCurrency !== $destinationAccount->currency
+            ? ['required', 'numeric', 'gt:0', 'decimal:0,4']
+            : ['nullable', 'numeric', 'gt:0', 'decimal:0,4'];
+
+        $validated = $this->validate($rules);
+
+        DB::transaction(function () use ($validated, $sourceAccount, $destinationAccount): void {
+            if ($this->editingTransactionId) {
+                $existingSource = Transaction::query()->findOrFail($this->editingTransactionId);
+                $existingDestination = $existingSource->relatedTransaction;
+                $existingDestination?->delete();
+                $existingSource->delete();
+            }
+
+            $source = new Transaction;
+            $source->fill([
+                'account_id' => $sourceAccount->id,
+                'type' => TransactionType::Transfer,
+                'transfer_direction' => TransferDirection::Source,
+                'description' => $validated['transactionDescription'] ?: null,
+                'currency' => $validated['transactionCurrency'],
+                'amount' => $validated['transactionAmount'],
+                'account_amount' => $this->transactionCurrency !== $sourceAccount->currency
+                    ? $validated['transactionAccountAmount']
+                    : null,
+                'transaction_date' => $validated['transactionDate'],
+            ]);
+            $source->save();
+
+            $destination = new Transaction;
+            $destination->fill([
+                'account_id' => $destinationAccount->id,
+                'related_transaction_id' => $source->id,
+                'type' => TransactionType::Transfer,
+                'transfer_direction' => TransferDirection::Destination,
+                'description' => $validated['transactionDescription'] ?: null,
+                'currency' => $validated['transferDestinationCurrency'],
+                'amount' => $validated['transferDestinationAmount'],
+                'account_amount' => $this->transferDestinationCurrency !== $destinationAccount->currency
+                    ? $validated['transferDestinationAccountAmount']
+                    : null,
+                'transaction_date' => $validated['transactionDate'],
+            ]);
+            $destination->save();
+
+            $source->update(['related_transaction_id' => $destination->id]);
+        });
+
+        $this->resetTransactionForm();
+        unset($this->transactions, $this->accounts);
+
+        Flux::toast(variant: 'success', text: __('Transfer saved.'));
+    }
+
     public function editTransaction(int $transactionId): void
     {
         $transaction = Transaction::query()->findOrFail($transactionId);
@@ -135,11 +251,26 @@ new #[Title('Transactions')] class extends Component {
         $this->transactionAmount = (string) $transaction->amount;
         $this->transactionAccountAmount = (string) ($transaction->account_amount ?? '');
         $this->transactionDate = $transaction->transaction_date->toDateString();
+
+        if ($transaction->type === TransactionType::Transfer) {
+            $destination = $transaction->relatedTransaction;
+
+            $this->transferDestinationAccountId = $destination?->account_id;
+            $this->transferDestinationCurrency = $destination?->currency ?? '';
+            $this->transferDestinationAmount = (string) ($destination?->amount ?? '');
+            $this->transferDestinationAccountAmount = (string) ($destination?->account_amount ?? '');
+        }
     }
 
     public function deleteTransaction(int $transactionId): void
     {
-        Transaction::query()->findOrFail($transactionId)->delete();
+        $transaction = Transaction::query()->findOrFail($transactionId);
+
+        if ($transaction->type === TransactionType::Transfer) {
+            $transaction->relatedTransaction?->delete();
+        }
+
+        $transaction->delete();
 
         unset($this->transactions);
 
@@ -150,11 +281,23 @@ new #[Title('Transactions')] class extends Component {
     {
         $account = $this->accounts->first();
 
-        $this->reset('editingTransactionId', 'transactionDescription', 'transactionAmount', 'transactionAccountAmount');
+        $this->reset(
+            'editingTransactionId',
+            'transactionDescription',
+            'transactionAmount',
+            'transactionAccountAmount',
+            'transferDestinationAccountId',
+            'transferDestinationCurrency',
+            'transferDestinationAmount',
+            'transferDestinationAccountAmount',
+        );
         $this->transactionType = TransactionType::Expense->value;
         $this->transactionDate = now()->toDateString();
         $this->transactionAccountId = $account?->id;
         $this->transactionCurrency = $account?->currency ?? '';
+        $destination = $this->accounts->first(fn (Account $candidate): bool => $candidate->id !== $account?->id);
+        $this->transferDestinationAccountId = $destination?->id;
+        $this->transferDestinationCurrency = $destination?->currency ?? '';
         $this->resetValidation();
     }
 }; ?>
@@ -183,6 +326,7 @@ new #[Title('Transactions')] class extends Component {
             <flux:select wire:model="transactionType" :label="__('Type')">
                 <flux:select.option value="expense">{{ __('Expense') }}</flux:select.option>
                 <flux:select.option value="income">{{ __('Income') }}</flux:select.option>
+                <flux:select.option value="transfer">{{ __('Transfer') }}</flux:select.option>
             </flux:select>
 
             <flux:input wire:model="transactionAmount" :label="__('Amount')" type="number" step="0.0001" min="0" />
@@ -190,6 +334,22 @@ new #[Title('Transactions')] class extends Component {
 
             @if ($transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
                 <flux:input wire:model="transactionAccountAmount" :label="__('Amount on account')" type="number" step="0.0001" min="0" />
+            @endif
+
+            @if ($transactionType === TransactionType::Transfer->value)
+                <flux:select wire:model.live="transferDestinationAccountId" :label="__('Destination account')" placeholder="{{ __('Choose an account') }}">
+                    @foreach ($this->accounts as $account)
+                        @if ($account->id !== $transactionAccountId)
+                            <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
+                        @endif
+                    @endforeach
+                </flux:select>
+                <flux:input wire:model="transferDestinationAmount" :label="__('Destination amount')" type="number" step="0.0001" min="0" />
+                <flux:input wire:model="transferDestinationCurrency" :label="__('Destination currency')" maxlength="3" class="uppercase" />
+
+                @if ($transferDestinationAccountId && $transferDestinationCurrency !== ($this->accounts->firstWhere('id', $transferDestinationAccountId)?->currency ?? ''))
+                    <flux:input wire:model="transferDestinationAccountAmount" :label="__('Destination amount on account')" type="number" step="0.0001" min="0" />
+                @endif
             @endif
 
             <flux:input wire:model="transactionDescription" :label="__('Description')" placeholder="{{ __('Optional') }}" />
@@ -231,7 +391,13 @@ new #[Title('Transactions')] class extends Component {
                         <tr wire:key="transaction-{{ $transaction->id }}">
                             <td class="py-3 pe-4">{{ $transaction->transaction_date->format('Y-m-d') }}</td>
                             <td class="py-3 pe-4">{{ $transaction->description ?? __('Untitled') }}</td>
-                            <td class="py-3 pe-4">{{ $transaction->account->name }}</td>
+                            <td class="py-3 pe-4">
+                                @if ($transaction->type === TransactionType::Transfer)
+                                    {{ $transaction->account->name }} &rarr; {{ $transaction->relatedTransaction?->account?->name ?? __('Unknown account') }}
+                                @else
+                                    {{ $transaction->account->name }}
+                                @endif
+                            </td>
                             <td class="py-3 pe-4 text-end {{ $transaction->type === TransactionType::Income ? 'text-green-600 dark:text-green-400' : '' }}">
                                 {{ $transaction->type === TransactionType::Income ? '+' : '-' }}{{ $transaction->amountOnAccount() }} {{ $transaction->account->currency }}
                             </td>

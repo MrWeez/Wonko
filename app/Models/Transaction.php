@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\TransactionType;
+use App\TransferDirection;
 use Database\Factories\TransactionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,10 +12,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property TransactionType $type
+ * @property TransferDirection|null $transfer_direction
  * @property string $amount
  * @property string|null $account_amount
  */
-#[Fillable(['account_id', 'related_transaction_id', 'type', 'description', 'currency', 'amount', 'account_amount', 'transaction_date'])]
+#[Fillable(['account_id', 'related_transaction_id', 'type', 'transfer_direction', 'description', 'currency', 'amount', 'account_amount', 'transaction_date'])]
 class Transaction extends UserOwnedModel
 {
     /** @use HasFactory<TransactionFactory> */
@@ -27,6 +29,7 @@ class Transaction extends UserOwnedModel
     {
         return [
             'type' => TransactionType::class,
+            'transfer_direction' => TransferDirection::class,
             'amount' => 'decimal:4',
             'account_amount' => 'decimal:4',
             'transaction_date' => 'date',
@@ -65,6 +68,7 @@ class Transaction extends UserOwnedModel
     public function signedAmountOnAccount(): string
     {
         return $this->type === TransactionType::Income
+            || ($this->type === TransactionType::Transfer && $this->transfer_direction === TransferDirection::Destination)
             ? $this->amountOnAccount()
             : '-'.$this->amountOnAccount();
     }

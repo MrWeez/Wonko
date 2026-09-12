@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\User;
 use App\TransactionType;
+use App\TransferDirection;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -25,6 +26,7 @@ class TransactionFactory extends Factory
             'account_id' => Account::factory(),
             'related_transaction_id' => null,
             'type' => TransactionType::Expense,
+            'transfer_direction' => null,
             'description' => fake()->sentence(3),
             'currency' => 'EUR',
             'amount' => '10.0000',
@@ -50,5 +52,21 @@ class TransactionFactory extends Factory
     public function expense(): static
     {
         return $this->state(['type' => TransactionType::Expense]);
+    }
+
+    public function transferSource(): static
+    {
+        return $this->state([
+            'type' => TransactionType::Transfer,
+            'transfer_direction' => TransferDirection::Source,
+        ]);
+    }
+
+    public function transferDestination(): static
+    {
+        return $this->state([
+            'type' => TransactionType::Transfer,
+            'transfer_direction' => TransferDirection::Destination,
+        ]);
     }
 }
