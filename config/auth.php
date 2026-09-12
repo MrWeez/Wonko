@@ -22,6 +22,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Registration Enabled
+    |--------------------------------------------------------------------------
+    |
+    | Controls whether new users may register. When this flag is disabled no
+    | new accounts can be created, but existing users keep full access to
+    | their accounts. Useful for single-user or trusted-network deployments
+    | where self-service registration should be closed off.
+    |
+    | Guard: while registration is disabled, the application refuses to run
+    | over plain HTTP if no users exist yet, because that state would leave
+    | the instance permanently locked out of creating the first account.
+    | Bootstrap the first user with `php artisan user:create` instead.
+    |
+    */
+
+    'registration_enabled' => env('REGISTRATION_ENABLED', true),
+
+    'email_verification_required' => env('EMAIL_VERIFICATION_REQUIRED', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Authentication Guards
     |--------------------------------------------------------------------------
     |

@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -24,13 +24,15 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
+ * @property Carbon|null $locked_at
+ * @property bool $must_change_password
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'email_verified_at'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class User extends Authenticatable implements PasskeyUser
+class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
@@ -45,6 +47,8 @@ class User extends Authenticatable implements PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'locked_at' => 'datetime',
+            'must_change_password' => 'boolean',
         ];
     }
 
@@ -58,5 +62,39 @@ class User extends Authenticatable implements PasskeyUser
         return Str::length($initials) > 1
             ? Str::substr($initials, 0, 1).Str::substr($initials, -1)
             : $initials;
+    }
+
+    public function isLocked(): bool
+    {
+        return $this->locked_at !== null;
+    }
+
+    public function lock(): void
+    {
+        $this->forceFill(['locked_at' => now()])->save();
+    }
+
+    public function unlock(): void
+    {
+        $this->forceFill(['locked_at' => null])->save();
+    }
+
+    /**
+     * Strip personally identifying data while keeping financial records.
+     */
+    public function anonymizePersonalData(): void
+    {
+        $this->forceFill([
+            'name' => 'Anonymized User',
+            'email' => 'anonymized-'.$this->id.'@localhost',
+            'password' => Str::random(60),
+            'email_verified_at' => null,
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+            'locked_at' => null,
+        ])->save();
+
+        $this->passkeys()->delete();
     }
 }

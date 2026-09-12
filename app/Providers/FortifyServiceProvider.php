@@ -4,12 +4,17 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Fortify;
+use Laravel\Passkeys\Contracts\PasskeyUser;
+use Laravel\Passkeys\Passkey;
+use Laravel\Passkeys\Passkeys;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -27,6 +32,7 @@ class FortifyServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureActions();
+        $this->configureAuthentication();
         $this->configureViews();
         $this->configureRateLimiting();
     }
@@ -38,6 +44,34 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
+    }
+
+    /**
+     * Configure how users authenticate, including account locks.
+     */
+    private function configureAuthentication(): void
+    {
+        Fortify::authenticateUsing(function (Request $request) {
+            $user = User::query()
+                ->where(Fortify::username(), $request->{Fortify::username()})
+                ->first();
+
+            if (! $user || $user->isLocked()) {
+                return null;
+            }
+
+            if (! Hash::check($request->password, $user->password)) {
+                return null;
+            }
+
+            if (Hash::needsRehash($user->password)) {
+                $user->forceFill(['password' => Hash::make($request->password)])->save();
+            }
+
+            return $user;
+        });
+
+        Passkeys::authorizeLoginUsing(fn (Request $request, PasskeyUser $user, Passkey $passkey): bool => $user instanceof User && ! $user->isLocked());
     }
 
     /**

@@ -26,6 +26,11 @@
     --color-accent: var(--color-neutral-800);
     --color-accent-content: var(--color-neutral-800);
     --color-accent-foreground: var(--color-white);
+
+    --color-success: #16a34a;
+    --color-warning: #f59e0b;
+    --color-danger: #e11d48;
+    --color-info: #0284c7;
 }
 
 @layer theme {
