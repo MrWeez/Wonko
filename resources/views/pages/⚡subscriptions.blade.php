@@ -2,11 +2,16 @@
 
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\PaymentMethod;
 use App\Models\Subscription;
+use App\Models\Transaction;
+use App\PaymentMethodType;
 use App\SubscriptionPeriodUnit;
 use App\TransactionType;
 use Flux\Flux;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -16,6 +21,8 @@ new #[Title('Subscriptions')] class extends Component {
     public string $subscriptionName = '';
 
     public ?int $subscriptionAccountId = null;
+
+    public ?int $subscriptionPaymentMethodId = null;
 
     public ?int $subscriptionCategoryId = null;
 
@@ -81,6 +88,15 @@ new #[Title('Subscriptions')] class extends Component {
     }
 
     /**
+     * @return Collection<int, PaymentMethod>
+     */
+    #[Computed]
+    public function paymentMethods(): Collection
+    {
+        return PaymentMethod::query()->orderBy('name')->get();
+    }
+
+    /**
      * @return Collection<int, Category>
      */
     #[Computed]
@@ -96,7 +112,7 @@ new #[Title('Subscriptions')] class extends Component {
     public function subscriptions(): Collection
     {
         return Subscription::query()
-            ->with(['account', 'category', 'occurrences' => fn ($query) => $query->latest('due_date')])
+            ->with(['account', 'category', 'paymentMethod', 'occurrences' => fn ($query) => $query->latest('due_date')])
             ->orderBy('active', 'desc')
             ->orderBy('next_due_date')
             ->get();
@@ -129,6 +145,7 @@ new #[Title('Subscriptions')] class extends Component {
                     ->ignore($this->editingSubscriptionId),
             ],
             'subscriptionAccountId' => ['required', Rule::exists('accounts', 'id')->where(fn ($query) => $query->where('user_id', auth()->id()))],
+            'subscriptionPaymentMethodId' => ['nullable', Rule::exists('payment_methods', 'id')->where(fn ($query) => $query->where('user_id', auth()->id()))],
             'subscriptionCategoryId' => ['nullable', Rule::exists('categories', 'id')->where(fn ($query) => $query->where('user_id', auth()->id()))],
             'subscriptionCurrency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
             'subscriptionAmount' => ['required', 'numeric', 'gt:0', 'decimal:0,4'],
@@ -153,6 +170,7 @@ new #[Title('Subscriptions')] class extends Component {
 
         $subscription->fill([
             'account_id' => $validated['subscriptionAccountId'],
+            'payment_method_id' => $validated['subscriptionPaymentMethodId'] ?: null,
             'category_id' => $validated['subscriptionCategoryId'],
             'name' => $validated['subscriptionName'],
             'currency' => $validated['subscriptionCurrency'],
@@ -179,6 +197,7 @@ new #[Title('Subscriptions')] class extends Component {
         $this->editingSubscriptionId = $subscription->id;
         $this->subscriptionName = $subscription->name;
         $this->subscriptionAccountId = $subscription->account_id;
+        $this->subscriptionPaymentMethodId = $subscription->payment_method_id;
         $this->subscriptionCategoryId = $subscription->category_id;
         $this->subscriptionCurrency = $subscription->currency;
         $this->subscriptionAmount = (string) $subscription->amount;
@@ -219,7 +238,7 @@ new #[Title('Subscriptions')] class extends Component {
 
     public function saveOccurrence(): void
     {
-        $subscription = Subscription::query()->with('account')->findOrFail($this->occurrenceSubscriptionId);
+        $subscription = Subscription::query()->with(['account', 'paymentMethod.primaryAccount', 'paymentMethod.secondaryAccount'])->findOrFail($this->occurrenceSubscriptionId);
         $accountCurrency = $subscription->account->currency;
 
         $rules = [
@@ -234,32 +253,81 @@ new #[Title('Subscriptions')] class extends Component {
 
         $validated = $this->validate($rules);
 
-        $transaction = $subscription->account->transactions()->create([
-            'category_id' => $subscription->category_id,
-            'type' => TransactionType::Expense,
-            'description' => $subscription->name,
-            'currency' => $validated['occurrenceCurrency'],
-            'amount' => $validated['occurrenceAmount'],
-            'account_amount' => $this->occurrenceCurrency !== $accountCurrency
-                ? $validated['occurrenceAccountAmount']
-                : null,
-            'transaction_date' => $validated['occurrenceDueDate'],
-        ]);
+        DB::transaction(function () use ($subscription, $validated, $accountCurrency): void {
+            $method = $subscription->paymentMethod;
+            $primaryTransaction = null;
 
-        $subscription->occurrences()->create([
-            'transaction_id' => $transaction->id,
-            'currency' => $validated['occurrenceCurrency'],
-            'amount' => $validated['occurrenceAmount'],
-            'account_amount' => $this->occurrenceCurrency !== $accountCurrency
-                ? $validated['occurrenceAccountAmount']
-                : null,
-            'due_date' => $validated['occurrenceDueDate'],
-            'paid_at' => now(),
-            'notes' => $validated['occurrenceNotes'] ?: null,
-        ]);
+            if ($method && $method->type === PaymentMethodType::Composite && $method->secondary_account_id) {
+                $splits = $method->calculateSplit($validated['occurrenceAmount']);
+                $splitGroupId = (string) Str::uuid();
 
-        $subscription->next_due_date = $subscription->nextDueDateAfter($subscription->next_due_date);
-        $subscription->save();
+                if ((float) $splits['primary_amount'] > 0) {
+                    $primaryTransaction = new Transaction;
+                    $primaryTransaction->forceFill([
+                        'user_id' => $subscription->user_id,
+                        'account_id' => $method->primary_account_id,
+                        'category_id' => $subscription->category_id,
+                        'payment_method_id' => $method->id,
+                        'split_group_id' => $splitGroupId,
+                        'type' => TransactionType::Expense,
+                        'description' => $subscription->name,
+                        'currency' => $validated['occurrenceCurrency'],
+                        'amount' => $splits['primary_amount'],
+                        'account_amount' => $this->occurrenceCurrency !== ($method->primaryAccount?->currency ?? $accountCurrency) ? $validated['occurrenceAccountAmount'] : null,
+                        'transaction_date' => $validated['occurrenceDueDate'],
+                    ]);
+                    $primaryTransaction->save();
+                }
+
+                if ((float) $splits['secondary_amount'] > 0) {
+                    $secondaryTransaction = new Transaction;
+                    $secondaryTransaction->forceFill([
+                        'user_id' => $subscription->user_id,
+                        'account_id' => $method->secondary_account_id,
+                        'category_id' => $subscription->category_id,
+                        'payment_method_id' => $method->id,
+                        'split_group_id' => $splitGroupId,
+                        'type' => TransactionType::Expense,
+                        'description' => $subscription->name,
+                        'currency' => $validated['occurrenceCurrency'],
+                        'amount' => $splits['secondary_amount'],
+                        'account_amount' => $this->occurrenceCurrency !== ($method->secondaryAccount?->currency ?? $accountCurrency) ? $validated['occurrenceAccountAmount'] : null,
+                        'transaction_date' => $validated['occurrenceDueDate'],
+                    ]);
+                    $secondaryTransaction->save();
+
+                    $primaryTransaction ??= $secondaryTransaction;
+                }
+            } else {
+                $primaryTransaction = $subscription->account->transactions()->create([
+                    'category_id' => $subscription->category_id,
+                    'payment_method_id' => $method?->id,
+                    'type' => TransactionType::Expense,
+                    'description' => $subscription->name,
+                    'currency' => $validated['occurrenceCurrency'],
+                    'amount' => $validated['occurrenceAmount'],
+                    'account_amount' => $this->occurrenceCurrency !== $accountCurrency
+                        ? $validated['occurrenceAccountAmount']
+                        : null,
+                    'transaction_date' => $validated['occurrenceDueDate'],
+                ]);
+            }
+
+            $subscription->occurrences()->create([
+                'transaction_id' => $primaryTransaction?->id,
+                'currency' => $validated['occurrenceCurrency'],
+                'amount' => $validated['occurrenceAmount'],
+                'account_amount' => $this->occurrenceCurrency !== $accountCurrency
+                    ? $validated['occurrenceAccountAmount']
+                    : null,
+                'due_date' => $validated['occurrenceDueDate'],
+                'paid_at' => now(),
+                'notes' => $validated['occurrenceNotes'] ?: null,
+            ]);
+
+            $subscription->next_due_date = $subscription->nextDueDateAfter($subscription->next_due_date);
+            $subscription->save();
+        });
 
         $this->resetOccurrenceForm();
         unset($this->subscriptions, $this->accounts);
@@ -271,7 +339,7 @@ new #[Title('Subscriptions')] class extends Component {
     {
         $account = $this->accounts->first();
 
-        $this->reset('subscriptionName', 'subscriptionCategoryId', 'subscriptionAmount', 'editingSubscriptionId');
+        $this->reset('subscriptionName', 'subscriptionPaymentMethodId', 'subscriptionCategoryId', 'subscriptionAmount', 'editingSubscriptionId');
         $this->subscriptionAccountId = $account?->id;
         $this->subscriptionCurrency = $account?->currency ?? '';
         $this->subscriptionPeriodCount = '1';
@@ -318,6 +386,14 @@ new #[Title('Subscriptions')] class extends Component {
                     <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }})</flux:select.option>
                 @endforeach
             </flux:select>
+            @if ($this->paymentMethods->isNotEmpty())
+                <flux:select wire:model="subscriptionPaymentMethodId" :label="__('Payment Method')" placeholder="{{ __('Direct / None') }}">
+                    <flux:select.option value="">{{ __('Direct / None') }}</flux:select.option>
+                    @foreach ($this->paymentMethods as $method)
+                        <flux:select.option value="{{ $method->id }}">{{ $method->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
             <flux:select wire:model="subscriptionCategoryId" :label="__('Category')" placeholder="{{ __('No category') }}">
                 <flux:select.option value="">{{ __('No category') }}</flux:select.option>
                 @foreach ($this->categories as $category)
@@ -377,7 +453,11 @@ new #[Title('Subscriptions')] class extends Component {
                         <div class="min-w-0 flex-1">
                             <flux:text class="font-medium">{{ $subscription->name }}</flux:text>
                             <flux:text size="sm">
-                                {{ $subscription->amount }} {{ $subscription->currency }} · {{ $subscription->account->name }} · {{ __('Due') }} {{ $subscription->next_due_date->format('Y-m-d') }}
+                                {{ $subscription->amount }} {{ $subscription->currency }} · {{ $subscription->account->name }}
+                                @if ($subscription->paymentMethod)
+                                    ({{ $subscription->paymentMethod->name }})
+                                @endif
+                                · {{ __('Due') }} {{ $subscription->next_due_date->format('Y-m-d') }}
                             </flux:text>
                         </div>
                         <flux:badge :color="$subscription->active ? 'green' : 'zinc'">{{ $subscription->active ? __('Active') : __('Paused') }}</flux:badge>

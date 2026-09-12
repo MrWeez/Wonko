@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property array<string, bool>|null $notification_channel_overrides
  * @property CarbonImmutable|null $notification_sent_for_due_date
  */
-#[Fillable(['account_id', 'category_id', 'name', 'currency', 'amount', 'period_count', 'period_unit', 'next_due_date', 'auto_post', 'active', 'notification_channel_overrides'])]
+#[Fillable(['account_id', 'category_id', 'payment_method_id', 'name', 'currency', 'amount', 'period_count', 'period_unit', 'next_due_date', 'auto_post', 'active', 'notification_channel_overrides'])]
 class Subscription extends UserOwnedModel
 {
     /** @use HasFactory<SubscriptionFactory> */
@@ -54,6 +54,14 @@ class Subscription extends UserOwnedModel
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /**
+     * @return BelongsTo<PaymentMethod, $this>
+     */
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 
     /**

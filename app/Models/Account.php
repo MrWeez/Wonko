@@ -52,11 +52,28 @@ class Account extends UserOwnedModel
     }
 
     /**
+     * @return HasMany<PaymentMethod, $this>
+     */
+    public function primaryPaymentMethods(): HasMany
+    {
+        return $this->hasMany(PaymentMethod::class, 'primary_account_id');
+    }
+
+    /**
+     * @return HasMany<PaymentMethod, $this>
+     */
+    public function secondaryPaymentMethods(): HasMany
+    {
+        return $this->hasMany(PaymentMethod::class, 'secondary_account_id');
+    }
+
+    /**
      * Return the live balance derived from income and expense transactions.
      */
     public function balance(): string
     {
         return (string) $this->transactions()
+            ->withoutGlobalScope('owned-by-user')
             ->whereIn('type', [
                 TransactionType::Expense->value,
                 TransactionType::Income->value,

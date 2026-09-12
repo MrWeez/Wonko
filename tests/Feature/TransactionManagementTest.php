@@ -2,9 +2,12 @@
 
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\PaymentMethod;
 use App\Models\Transaction;
 use App\Models\User;
+use App\PaymentMethodType;
 use App\TransferDirection;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 test('account balance is derived from income and expense transactions', function () {
@@ -179,4 +182,121 @@ test('income and expense transactions can be assigned to owned categories', func
     $category->delete();
 
     expect($transaction->fresh()->category_id)->toBeNull();
+});
+
+test('users can create custom split transactions across multiple accounts', function () {
+    $user = User::factory()->create();
+    $accountA = Account::factory()->for($user)->create(['name' => 'Account A', 'currency' => 'EUR']);
+    $accountB = Account::factory()->for($user)->create(['name' => 'Account B', 'currency' => 'EUR']);
+
+    Livewire::actingAs($user)
+        ->test('pages::transactions')
+        ->set('transactionType', 'expense')
+        ->set('paymentSourceMode', 'split')
+        ->set('transactionAccountId', $accountA->id)
+        ->set('splitSecondaryAccountId', $accountB->id)
+        ->set('transactionCurrency', 'EUR')
+        ->set('transactionAmount', '50.00')
+        ->set('splitPrimaryAmount', '20.00')
+        ->set('splitSecondaryAmount', '30.00')
+        ->set('transactionDescription', 'Dinner split')
+        ->set('transactionDate', now()->toDateString())
+        ->call('saveTransaction')
+        ->assertHasNoErrors();
+
+    $transactions = Transaction::query()->orderBy('id')->get();
+
+    expect($transactions)->toHaveCount(2)
+        ->and($transactions[0]->account_id)->toBe($accountA->id)
+        ->and($transactions[0]->amount)->toBe('20.0000')
+        ->and($transactions[1]->account_id)->toBe($accountB->id)
+        ->and($transactions[1]->amount)->toBe('30.0000')
+        ->and($transactions[0]->split_group_id)->not->toBeNull()
+        ->and($transactions[0]->split_group_id)->toBe($transactions[1]->split_group_id)
+        ->and((float) $accountA->fresh()->balance())->toBe(-20.0)
+        ->and((float) $accountB->fresh()->balance())->toBe(-30.0);
+});
+
+test('split transactions validate that split amounts sum to total amount', function () {
+    $user = User::factory()->create();
+    $accountA = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    $accountB = Account::factory()->for($user)->create(['currency' => 'EUR']);
+
+    Livewire::actingAs($user)
+        ->test('pages::transactions')
+        ->set('transactionType', 'expense')
+        ->set('paymentSourceMode', 'split')
+        ->set('transactionAccountId', $accountA->id)
+        ->set('splitSecondaryAccountId', $accountB->id)
+        ->set('transactionCurrency', 'EUR')
+        ->set('transactionAmount', '50.00')
+        ->set('splitPrimaryAmount', '20.00')
+        ->set('splitSecondaryAmount', '20.00') // sum is 40 != 50
+        ->set('transactionDate', now()->toDateString())
+        ->call('saveTransaction')
+        ->assertHasErrors(['splitPrimaryAmount']);
+});
+
+test('composite payment method automatically splits transaction based on primary account balance', function () {
+    $user = User::factory()->create();
+    $primary = Account::factory()->for($user)->create(['name' => 'PayPal', 'currency' => 'USD']);
+    $backup = Account::factory()->for($user)->create(['name' => 'Credit Card', 'currency' => 'USD']);
+
+    // Seed $15 into PayPal balance
+    Transaction::factory()->forAccount($primary)->income()->create(['amount' => '15.0000']);
+
+    $method = PaymentMethod::factory()->for($user)->create([
+        'name' => 'PayPal Wallet',
+        'type' => PaymentMethodType::Composite,
+        'primary_account_id' => $primary->id,
+        'secondary_account_id' => $backup->id,
+        'auto_split_balance' => true,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::transactions')
+        ->set('transactionType', 'expense')
+        ->set('paymentSourceMode', 'payment_method')
+        ->set('paymentMethodId', $method->id)
+        ->set('transactionAmount', '50.00')
+        ->set('transactionDate', now()->toDateString())
+        ->call('saveTransaction')
+        ->assertHasNoErrors();
+
+    // 1 income + 2 split expenses = 3 transactions
+    $splits = Transaction::query()->where('type', 'expense')->orderBy('id')->get();
+
+    expect($splits)->toHaveCount(2)
+        ->and($splits[0]->account_id)->toBe($primary->id)
+        ->and($splits[0]->amount)->toBe('15.0000')
+        ->and($splits[1]->account_id)->toBe($backup->id)
+        ->and($splits[1]->amount)->toBe('35.0000')
+        ->and($splits[0]->payment_method_id)->toBe($method->id)
+        ->and((float) $primary->fresh()->balance())->toBe(0.0)
+        ->and((float) $backup->fresh()->balance())->toBe(-35.0);
+});
+
+test('deleting a split transaction removes all linked split records', function () {
+    $user = User::factory()->create();
+    $accountA = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    $accountB = Account::factory()->for($user)->create(['currency' => 'EUR']);
+
+    $splitId = (string) Str::uuid();
+
+    $t1 = Transaction::factory()->forAccount($accountA)->expense()->create([
+        'split_group_id' => $splitId,
+        'amount' => '20.0000',
+    ]);
+    Transaction::factory()->forAccount($accountB)->expense()->create([
+        'split_group_id' => $splitId,
+        'amount' => '30.0000',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::transactions')
+        ->call('deleteTransaction', $t1->id);
+
+    expect(Transaction::query()->where('split_group_id', $splitId)->count())->toBe(0)
+        ->and((float) $accountA->fresh()->balance())->toBe(0.0)
+        ->and((float) $accountB->fresh()->balance())->toBe(0.0);
 });

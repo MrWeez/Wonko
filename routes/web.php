@@ -12,6 +12,7 @@ Route::middleware(array_filter([
 ]))->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
     Route::livewire('accounts', 'pages::accounts')->name('accounts.index');
+    Route::livewire('payment-methods', 'pages::payment-methods')->name('payment-methods.index');
     Route::livewire('transactions', 'pages::transactions')->name('transactions.index');
     Route::livewire('categories', 'pages::categories')->name('categories.index');
     Route::livewire('subscriptions', 'pages::subscriptions')->name('subscriptions.index');

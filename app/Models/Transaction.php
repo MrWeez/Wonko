@@ -6,6 +6,7 @@ use App\TransactionType;
 use App\TransferDirection;
 use Database\Factories\TransactionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -15,8 +16,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property TransferDirection|null $transfer_direction
  * @property string $amount
  * @property string|null $account_amount
+ * @property string|null $split_group_id
  */
-#[Fillable(['account_id', 'category_id', 'related_transaction_id', 'type', 'transfer_direction', 'description', 'currency', 'amount', 'account_amount', 'transaction_date'])]
+#[Fillable(['account_id', 'category_id', 'payment_method_id', 'related_transaction_id', 'split_group_id', 'type', 'transfer_direction', 'description', 'currency', 'amount', 'account_amount', 'transaction_date'])]
 class Transaction extends UserOwnedModel
 {
     /** @use HasFactory<TransactionFactory> */
@@ -53,6 +55,14 @@ class Transaction extends UserOwnedModel
     }
 
     /**
+     * @return BelongsTo<PaymentMethod, $this>
+     */
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
+    }
+
+    /**
      * @return BelongsTo<Transaction, $this>
      */
     public function relatedTransaction(): BelongsTo
@@ -66,6 +76,26 @@ class Transaction extends UserOwnedModel
     public function inverseRelatedTransaction(): HasOne
     {
         return $this->hasOne(Transaction::class, 'related_transaction_id');
+    }
+
+    public function isSplit(): bool
+    {
+        return ! empty($this->split_group_id);
+    }
+
+    /**
+     * @return Collection<int, Transaction>
+     */
+    public function splitSiblings(): Collection
+    {
+        if (! $this->split_group_id) {
+            return new Collection;
+        }
+
+        return static::query()
+            ->where('split_group_id', $this->split_group_id)
+            ->where('id', '!=', $this->id)
+            ->get();
     }
 
     public function amountOnAccount(): string
