@@ -278,7 +278,7 @@ class ReportData
         return [
             'show' => array_any($cells, fn (array $cell): bool => $cell['class'] !== ''),
             'cells' => array_values($cells),
-            'months' => array_values($months),
+            'months' => $months,
         ];
     }
 
