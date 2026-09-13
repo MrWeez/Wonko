@@ -4,18 +4,16 @@ namespace App\Notifications;
 
 use App\Models\Subscription;
 use App\Models\SubscriptionOccurrence;
-use App\Models\User;
-use App\Notifications\Channels\DiscordChannel;
-use App\Notifications\Channels\TelegramChannel;
-use App\Notifications\Channels\WebhookChannel;
+use App\Notifications\Concerns\RoutesSubscriptionChannels;
 use Carbon\CarbonImmutable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use NotificationChannels\WebPush\WebPushChannel;
 use NotificationChannels\WebPush\WebPushMessage;
 
 class SubscriptionDueNotification extends Notification
 {
+    use RoutesSubscriptionChannels;
+
     public function __construct(
         public Subscription $subscription,
         public ?SubscriptionOccurrence $occurrence = null,
@@ -26,37 +24,7 @@ class SubscriptionDueNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        if (! $notifiable instanceof User) {
-            return [];
-        }
-
-        $channels = [];
-
-        if ($this->channelEnabled($notifiable, 'database')) {
-            $channels[] = 'database';
-        }
-
-        if ($this->channelEnabled($notifiable, 'email')) {
-            $channels[] = 'mail';
-        }
-
-        if ($this->channelEnabled($notifiable, 'webhook')) {
-            $channels[] = WebhookChannel::class;
-        }
-
-        if ($this->channelEnabled($notifiable, 'telegram')) {
-            $channels[] = TelegramChannel::class;
-        }
-
-        if ($this->channelEnabled($notifiable, 'discord')) {
-            $channels[] = DiscordChannel::class;
-        }
-
-        if ($this->channelEnabled($notifiable, 'browser')) {
-            $channels[] = WebPushChannel::class;
-        }
-
-        return $channels;
+        return $this->routesVia($notifiable);
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -147,15 +115,6 @@ class SubscriptionDueNotification extends Notification
             ->action('Open subscription', 'open_subscription')
             ->data(['url' => route('subscriptions.index')])
             ->options(['TTL' => 86400]);
-    }
-
-    private function channelEnabled(User $notifiable, string $channel): bool
-    {
-        $overrides = $this->subscription->notification_channel_overrides;
-
-        return is_array($overrides) && array_key_exists($channel, $overrides)
-            ? (bool) $overrides[$channel]
-            : $notifiable->notificationChannelEnabled($channel);
     }
 
     private function amount(): string

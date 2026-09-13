@@ -120,10 +120,8 @@ class ProcessDueSubscriptions
                             ]);
                             $occurrence->save();
 
-                            if (! $subscription->notificationSentFor($dueDate)) {
-                                $subscription->user->notify(new SubscriptionDueNotification($subscription, $occurrence));
-                                $subscription->markNotificationSent($dueDate);
-                            }
+                            $subscription->markNotificationFullySent($dueDate, $subscription->reminderDays());
+                            $subscription->user->notify(new SubscriptionDueNotification($subscription, $occurrence));
 
                             $processed++;
                         }

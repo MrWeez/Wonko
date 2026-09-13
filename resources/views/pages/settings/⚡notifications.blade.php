@@ -35,6 +35,15 @@ new #[Title('Notification settings')] class extends Component {
 
     public int $notificationDaysBefore = 0;
 
+    /**
+     * @var list<int>
+     */
+    public array $notificationReminders = [];
+
+    public bool $notificationOverdue = false;
+
+    public int $notificationOverdueFrequency = 3;
+
     public function mount(): void
     {
         $preferences = Auth::user()->notificationPreferences();
@@ -46,11 +55,25 @@ new #[Title('Notification settings')] class extends Component {
         $this->telegram = $preferences['telegram'];
         $this->browser = $preferences['browser'];
         $this->notificationDaysBefore = Auth::user()->notificationDaysBefore();
+        $this->notificationReminders = Auth::user()->notificationReminders();
+        $this->notificationOverdue = Auth::user()->notificationOverdue();
+        $this->notificationOverdueFrequency = Auth::user()->notificationOverdueFrequency();
 
         $configurations = Auth::user()->notificationChannelConfigurations();
         $this->webhookUrl = $configurations['webhook']['url'] ?? '';
         $this->telegramChatId = (string) ($configurations['telegram']['chat_id'] ?? '');
         $this->telegramMessageThreadId = (string) ($configurations['telegram']['message_thread_id'] ?? '');
+    }
+
+    public function addReminder(): void
+    {
+        $this->notificationReminders[] = 1;
+    }
+
+    public function removeReminder(int $index): void
+    {
+        unset($this->notificationReminders[$index]);
+        $this->notificationReminders = array_values($this->notificationReminders);
     }
 
     /**
@@ -123,6 +146,10 @@ new #[Title('Notification settings')] class extends Component {
             'telegramChatId' => ['nullable', 'string', 'max:255'],
             'telegramMessageThreadId' => ['nullable', 'integer', 'min:1'],
             'notificationDaysBefore' => ['required', 'integer', 'min:0', 'max:365'],
+            'notificationReminders' => ['present', 'array'],
+            'notificationReminders.*' => ['required', 'integer', 'min:1', 'max:365'],
+            'notificationOverdue' => ['boolean'],
+            'notificationOverdueFrequency' => ['required', 'integer', 'min:1', 'max:365'],
         ]);
 
         $configurations = Auth::user()->notificationChannelConfigurations();
@@ -145,6 +172,9 @@ new #[Title('Notification settings')] class extends Component {
             'browser' => $this->browser,
         ]);
         Auth::user()->setNotificationDaysBefore($this->notificationDaysBefore);
+        Auth::user()->setNotificationReminders(array_values(array_map('intval', $this->notificationReminders)));
+        Auth::user()->setNotificationOverdue((bool) $this->notificationOverdue);
+        Auth::user()->setNotificationOverdueFrequency((int) $this->notificationOverdueFrequency);
         Auth::user()->setNotificationChannelConfigurations([
             'webhook' => ['url' => $this->webhookUrl, 'secret' => $webhookSecret],
             'discord' => ['url' => $discordUrl],
@@ -174,20 +204,53 @@ new #[Title('Notification settings')] class extends Component {
                 </flux:callout>
             @endforeach
 
-            {{-- 1. Timing --}}
+            {{-- 1. Reminders & overdue --}}
             <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <div class="flex items-center gap-3 border-b border-zinc-100 pb-4 dark:border-zinc-800">
                     <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
                         <flux:icon icon="clock" class="size-4 text-zinc-600 dark:text-zinc-400" />
                     </div>
                     <div>
-                        <flux:heading size="sm">{{ __('Reminder Timing') }}</flux:heading>
-                        <flux:text size="xs" class="text-zinc-500">{{ __('How many days before the due date Wonko should alert you.') }}</flux:text>
+                        <flux:heading size="sm">{{ __('Reminder Schedule') }}</flux:heading>
+                        <flux:text size="xs" class="text-zinc-500">{{ __('Add as many reminders as you like. Each one fires a number of days before the due date.') }}</flux:text>
                     </div>
                 </div>
-                <div class="mt-4 max-w-xs">
-                    <flux:input wire:model="notificationDaysBefore" :label="__('Days before due date')" type="number" min="0" max="365" />
-                    <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('0 = on the day itself · 1 = 1 day early · 7 = one week early') }}</flux:text>
+
+                <div class="mt-4 space-y-2">
+                    @forelse ($this->notificationReminders as $index => $days)
+                        <div class="flex items-end gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+                            <flux:input
+                                wire:model="notificationReminders.{{ $index }}"
+                                :label="__('Notify days before due')"
+                                type="number"
+                                min="1"
+                                max="365"
+                                class="max-w-xs"
+                            />
+                            <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Remove reminder') }}" wire:click="removeReminder({{ $index }})" />
+                        </div>
+                    @empty
+                        <flux:text size="sm" class="text-zinc-500">{{ __('No reminders set.') }}</flux:text>
+                    @endforelse
+
+                    <flux:button size="sm" variant="ghost" icon="plus" wire:click="addReminder">{{ __('Add reminder') }}</flux:button>
+                </div>
+
+                <div class="mt-5 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <flux:heading size="sm">{{ __('Notify about overdue payments') }}</flux:heading>
+                            <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Keep nudging for a subscription that is past due and not yet confirmed.') }}</flux:text>
+                        </div>
+                        <flux:switch wire:model="notificationOverdue" />
+                    </div>
+
+                    @if ($this->notificationOverdue)
+                        <div class="mt-4 max-w-xs">
+                            <flux:input wire:model="notificationOverdueFrequency" :label="__('Remind again every (:unit)', ['unit' => __('days')])" type="number" min="1" max="365" />
+                            <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('While the payment stays overdue, a reminder goes out every N days.') }}</flux:text>
+                        </div>
+                    @endif
                 </div>
             </div>
 

@@ -10,6 +10,7 @@ use App\SubscriptionPeriodUnit;
 use App\TransactionType;
 use Flux\Flux;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -50,6 +51,17 @@ new #[Title('Subscriptions')] class extends Component {
         'discord' => 'global',
         'telegram' => 'global',
     ];
+
+    public bool $subscriptionOverrideNotifications = false;
+
+    /**
+     * @var list<int>
+     */
+    public array $subscriptionReminders = [];
+
+    public bool $subscriptionOverdue = false;
+
+    public int $subscriptionOverdueFrequency = 3;
 
     public ?int $editingSubscriptionId = null;
 
@@ -155,10 +167,20 @@ new #[Title('Subscriptions')] class extends Component {
             'subscriptionAutoPost' => ['boolean'],
             'subscriptionActive' => ['boolean'],
             'subscriptionNotificationChannels.*' => ['required', Rule::in(['global', 'enabled', 'disabled'])],
+            'subscriptionOverrideNotifications' => ['boolean'],
         ]);
 
+        if ($this->subscriptionOverrideNotifications) {
+            $this->validate([
+                'subscriptionReminders' => ['present', 'array'],
+                'subscriptionReminders.*' => ['required', 'integer', 'min:1', 'max:365'],
+                'subscriptionOverdue' => ['boolean'],
+                'subscriptionOverdueFrequency' => ['required', 'integer', 'min:1', 'max:365'],
+            ]);
+        }
+
         $notificationChannelOverrides = [];
-        foreach ($validated['subscriptionNotificationChannels'] as $channel => $value) {
+        foreach ($this->subscriptionNotificationChannels as $channel => $value) {
             if ($value !== 'global') {
                 $notificationChannelOverrides[$channel] = $value === 'enabled';
             }
@@ -169,18 +191,23 @@ new #[Title('Subscriptions')] class extends Component {
             : new Subscription;
 
         $subscription->fill([
-            'account_id' => $validated['subscriptionAccountId'],
-            'payment_method_id' => $validated['subscriptionPaymentMethodId'] ?: null,
-            'category_id' => $validated['subscriptionCategoryId'],
-            'name' => $validated['subscriptionName'],
-            'currency' => $validated['subscriptionCurrency'],
-            'amount' => $validated['subscriptionAmount'],
-            'period_count' => $validated['subscriptionPeriodCount'],
-            'period_unit' => $validated['subscriptionPeriodUnit'],
-            'next_due_date' => $validated['subscriptionNextDueDate'],
-            'auto_post' => $validated['subscriptionAutoPost'],
-            'active' => $validated['subscriptionActive'],
+            'account_id' => $this->subscriptionAccountId,
+            'payment_method_id' => $this->subscriptionPaymentMethodId ?: null,
+            'category_id' => $this->subscriptionCategoryId,
+            'name' => $this->subscriptionName,
+            'currency' => $this->subscriptionCurrency,
+            'amount' => $this->subscriptionAmount,
+            'period_count' => $this->subscriptionPeriodCount,
+            'period_unit' => $this->subscriptionPeriodUnit,
+            'next_due_date' => $this->subscriptionNextDueDate,
+            'auto_post' => $this->subscriptionAutoPost,
+            'active' => $this->subscriptionActive,
             'notification_channel_overrides' => $notificationChannelOverrides ?: null,
+            'notification_reminders' => $this->subscriptionOverrideNotifications
+                ? array_values(array_map('intval', $this->subscriptionReminders))
+                : null,
+            'notification_overdue' => $this->subscriptionOverrideNotifications ? (bool) $this->subscriptionOverdue : null,
+            'notification_overdue_frequency' => $this->subscriptionOverrideNotifications ? (int) $this->subscriptionOverdueFrequency : null,
         ]);
         $subscription->save();
 
@@ -213,6 +240,24 @@ new #[Title('Subscriptions')] class extends Component {
                 $subscription->notification_channel_overrides ?? [],
             ),
         );
+
+        $this->subscriptionOverrideNotifications = $subscription->notification_reminders !== null
+            || $subscription->notification_overdue !== null
+            || $subscription->notification_overdue_frequency !== null;
+        $this->subscriptionReminders = $subscription->notification_reminders ?? Auth::user()->notificationReminders();
+        $this->subscriptionOverdue = $subscription->notification_overdue ?? Auth::user()->notificationOverdue();
+        $this->subscriptionOverdueFrequency = $subscription->notification_overdue_frequency ?? Auth::user()->notificationOverdueFrequency();
+    }
+
+    public function addSubscriptionReminder(): void
+    {
+        $this->subscriptionReminders[] = 1;
+    }
+
+    public function removeSubscriptionReminder(int $index): void
+    {
+        unset($this->subscriptionReminders[$index]);
+        $this->subscriptionReminders = array_values($this->subscriptionReminders);
     }
 
     public function deleteSubscription(int $subscriptionId): void
@@ -354,6 +399,10 @@ new #[Title('Subscriptions')] class extends Component {
             'discord' => 'global',
             'telegram' => 'global',
         ];
+        $this->subscriptionOverrideNotifications = false;
+        $this->subscriptionReminders = Auth::user()->notificationReminders();
+        $this->subscriptionOverdue = Auth::user()->notificationOverdue();
+        $this->subscriptionOverdueFrequency = Auth::user()->notificationOverdueFrequency();
         $this->resetValidation();
     }
 
@@ -450,6 +499,52 @@ new #[Title('Subscriptions')] class extends Component {
                     <flux:checkbox wire:model="subscriptionActive" :label="__('Active subscription')" />
                     <flux:text size="xs" class="ms-6 text-zinc-500">{{ __('Uncheck to pause tracking.') }}</flux:text>
                 </div>
+            </div>
+
+            <div class="mt-6 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <flux:heading size="sm">{{ __('Custom notification schedule') }}</flux:heading>
+                        <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Override the reminder schedule from your settings for this subscription.') }}</flux:text>
+                    </div>
+                    <flux:switch wire:model="subscriptionOverrideNotifications" />
+                </div>
+
+                @if ($this->subscriptionOverrideNotifications)
+                    <div class="mt-4 space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                        <flux:text size="xs" class="mb-2 font-medium uppercase tracking-wide text-zinc-500">{{ __('Reminders') }}</flux:text>
+                        @forelse ($this->subscriptionReminders as $index => $days)
+                            <div class="flex items-end gap-3">
+                                <flux:input
+                                    wire:model="subscriptionReminders.{{ $index }}"
+                                    :label="__('Notify days before due')"
+                                    type="number"
+                                    min="1"
+                                    max="365"
+                                    class="max-w-xs"
+                                />
+                                <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Remove reminder') }}" wire:click="removeSubscriptionReminder({{ $index }})" />
+                            </div>
+                        @empty
+                            <flux:text size="sm" class="text-zinc-500">{{ __('No reminders.') }}</flux:text>
+                        @endforelse
+                        <flux:button size="sm" variant="ghost" icon="plus" wire:click="addSubscriptionReminder">{{ __('Add reminder') }}</flux:button>
+
+                        <div class="mt-4 flex items-start justify-between gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                            <div>
+                                <flux:heading size="sm">{{ __('Notify about overdue payments') }}</flux:heading>
+                                <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Also applies to manual confirmation.') }}</flux:text>
+                            </div>
+                            <flux:switch wire:model="subscriptionOverdue" />
+                        </div>
+
+                        @if ($this->subscriptionOverdue)
+                            <div class="max-w-xs">
+                                <flux:input wire:model="subscriptionOverdueFrequency" :label="__('Remind again every (:unit)', ['unit' => __('days')])" type="number" min="1" max="365" />
+                            </div>
+                        @endif
+                    </div>
+                @endif
             </div>
 
             <div class="flex justify-end pt-2">

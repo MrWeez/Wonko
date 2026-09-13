@@ -192,3 +192,36 @@ test('deleting a subscription payment transaction also removes its occurrence', 
     expect(Transaction::withoutGlobalScopes()->find($transactionId))->toBeNull()
         ->and(SubscriptionOccurrence::withoutGlobalScopes()->find($occurrence->id))->toBeNull();
 });
+
+test('subscriptions can override the default notification schedule', function () {
+    $user = User::factory()->create();
+    $user->setNotificationReminders([7]);
+    $user->setNotificationOverdue(true);
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+
+    Livewire::actingAs($user)
+        ->test('pages::subscriptions')
+        ->set('subscriptionName', 'Custom')
+        ->set('subscriptionAccountId', $account->id)
+        ->set('subscriptionCurrency', 'EUR')
+        ->set('subscriptionAmount', '10.00')
+        ->set('subscriptionNextDueDate', now()->addMonth()->toDateString())
+        ->set('subscriptionOverrideNotifications', true)
+        ->set('subscriptionReminders', [2])
+        ->set('subscriptionOverdue', false)
+        ->set('subscriptionOverdueFrequency', 5)
+        ->call('saveSubscription')
+        ->assertHasNoErrors();
+
+    $subscription = Subscription::query()->where('name', 'Custom')->firstOrFail();
+
+    expect($subscription->reminderDays())->toBe([2])
+        ->and($subscription->overdueEnabled())->toBeFalse()
+        ->and($subscription->overdueFrequency())->toBe(5);
+
+    // A subscription without overrides falls back to the user's defaults.
+    $plain = Subscription::factory()->forAccount($account)->create();
+
+    expect($plain->reminderDays())->toBe([7])
+        ->and($plain->overdueEnabled())->toBeTrue();
+});

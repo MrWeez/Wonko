@@ -29,6 +29,9 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
  * @property Carbon|null $locked_at
  * @property bool $must_change_password
  * @property int $notification_days_before
+ * @property array<int, int>|null $notification_reminders
+ * @property bool $notification_overdue
+ * @property int $notification_overdue_frequency
  * @property array<string, bool>|null $notification_preferences
  * @property array<string, mixed>|null $notification_channel_config
  * @property array<string, array<string, string>>|null $notification_channel_status
@@ -56,6 +59,9 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'locked_at' => 'datetime',
             'must_change_password' => 'boolean',
             'notification_days_before' => 'integer',
+            'notification_reminders' => 'array',
+            'notification_overdue' => 'boolean',
+            'notification_overdue_frequency' => 'integer',
             'notification_preferences' => 'array',
             'notification_channel_config' => 'encrypted:array',
             'notification_channel_status' => 'encrypted:array',
@@ -121,6 +127,44 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function setNotificationDaysBefore(int $days): void
     {
         $this->forceFill(['notification_days_before' => $days])->save();
+    }
+
+    /**
+     * Days before the due date each reminder should fire.
+     *
+     * @return array<int, int>
+     */
+    public function notificationReminders(): array
+    {
+        return array_values(array_filter(array_map('intval', $this->notification_reminders ?? [7, 3, 1])));
+    }
+
+    /**
+     * @param  array<int, int>  $days
+     */
+    public function setNotificationReminders(array $days): void
+    {
+        $this->forceFill(['notification_reminders' => array_values(array_unique(array_filter(array_map('intval', $days))))])->save();
+    }
+
+    public function notificationOverdue(): bool
+    {
+        return (bool) ($this->notification_overdue ?? false);
+    }
+
+    public function setNotificationOverdue(bool $enabled): void
+    {
+        $this->forceFill(['notification_overdue' => $enabled])->save();
+    }
+
+    public function notificationOverdueFrequency(): int
+    {
+        return max(1, (int) ($this->notification_overdue_frequency ?? 3));
+    }
+
+    public function setNotificationOverdueFrequency(int $days): void
+    {
+        $this->forceFill(['notification_overdue_frequency' => max(1, $days)])->save();
     }
 
     /**

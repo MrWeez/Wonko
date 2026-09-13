@@ -1,12 +1,45 @@
 <?php
 
+use App\Actions\NotifyUpcomingSubscriptions;
 use App\Models\Account;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Notifications\SubscriptionDueNotification;
+use Carbon\CarbonImmutable;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+
+test('users can save a flexible reminder schedule and overdue settings', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::settings.notifications')
+        ->set('notificationReminders', [7, 5])
+        ->set('notificationOverdue', true)
+        ->set('notificationOverdueFrequency', 2)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $stored = $user->fresh();
+
+    expect($stored->notificationReminders())->toBe([7, 5])
+        ->and($stored->notificationOverdue())->toBeTrue()
+        ->and($stored->notificationOverdueFrequency())->toBe(2);
+});
+
+test('users can save an empty reminder schedule', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::settings.notifications')
+        ->set('notificationReminders', [])
+        ->set('notificationOverdue', false)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($user->fresh()->notificationReminders())->toBe([]);
+});
 
 test('users can update notification channel preferences', function () {
     $user = User::factory()->create();
@@ -242,24 +275,75 @@ test('auto-post delivers a Discord embed to its configured webhook', function ()
     });
 });
 
-test('upcoming subscription notifications use timing and are idempotent', function () {
+test('upcoming subscription notifications fire per reminder day and are idempotent', function () {
     $user = User::factory()->create();
-    $user->setNotificationDaysBefore(2);
+    $user->setNotificationReminders([7, 3, 1]);
     $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
     $subscription = Subscription::factory()->forAccount($account)->create([
-        'next_due_date' => now()->addDay()->toDateString(),
+        'next_due_date' => now()->addDays(3)->toDateString(),
         'auto_post' => false,
+    ]);
+
+    // Due in 3 days: the 7- and 3-day reminder dates have arrived, the 1-day one has not.
+    $this->artisan('subscriptions:notify-upcoming')->assertExitCode(0);
+
+    expect(DatabaseNotification::query()->count())->toBe(1);
+
+    $state = $subscription->fresh()->notificationStateFor($subscription->next_due_date->toDateString());
+
+    expect($state['days'])->toContain(7, 3)
+        ->and($state['days'])->not->toContain(1);
+
+    // Day before due: the 1-day reminder fires.
+    (new NotifyUpcomingSubscriptions)->handle(CarbonImmutable::today()->addDays(2));
+
+    expect(DatabaseNotification::query()->count())->toBe(2);
+
+    // And running again never duplicates.
+    (new NotifyUpcomingSubscriptions)->handle(CarbonImmutable::today()->addDays(3));
+
+    expect(DatabaseNotification::query()->count())->toBe(2);
+});
+
+test('overdue notifications repeat on the configured frequency', function () {
+    $user = User::factory()->create();
+    $user->setNotificationOverdue(true);
+    $user->setNotificationOverdueFrequency(3);
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    $subscription = Subscription::factory()->forAccount($account)->create([
+        'next_due_date' => now()->subDay()->toDateString(),
+        'auto_post' => false,
+        'notification_reminders' => [],
+    ]);
+
+    $this->artisan('subscriptions:notify-upcoming')->assertExitCode(0);
+    $this->artisan('subscriptions:notify-upcoming')->assertExitCode(0);
+
+    expect(DatabaseNotification::query()->count())->toBe(1);
+
+    // Three days later the nudge should fire again.
+    (new NotifyUpcomingSubscriptions)->handle(CarbonImmutable::today()->addDays(3));
+
+    expect(DatabaseNotification::query()->count())->toBe(2);
+});
+
+test('subscriptions can override the reminder schedule', function () {
+    $user = User::factory()->create();
+    $user->setNotificationReminders([7]);
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+
+    $overridden = Subscription::factory()->forAccount($account)->create([
+        'next_due_date' => now()->addDays(2)->toDateString(),
+        'notification_reminders' => [2],
+    ]);
+    $plain = Subscription::factory()->forAccount($account)->create([
+        'next_due_date' => now()->addDays(2)->toDateString(),
     ]);
 
     $this->artisan('subscriptions:notify-upcoming')->assertExitCode(0);
 
-    expect(DatabaseNotification::query()->count())->toBe(1)
-        ->and($subscription->fresh()->notification_sent_for_due_date->toDateString())
-        ->toBe($subscription->next_due_date->toDateString());
-
-    $this->artisan('subscriptions:notify-upcoming')->assertExitCode(0);
-
-    expect(DatabaseNotification::query()->count())->toBe(1);
+    expect(DatabaseNotification::query()->count())->toBe(2)
+        ->and($overridden->fresh()->overdueEnabled())->toBeFalse();
 });
 
 test('subscription channel overrides take precedence over global preferences', function () {
