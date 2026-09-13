@@ -113,7 +113,7 @@ new #[Title('Reports')] class extends Component {
 <section class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 p-6 lg:p-10">
     <header class="flex flex-col gap-1 border-b border-zinc-200 pb-6 dark:border-zinc-700">
         <flux:heading size="xl">{{ __('Reports') }}</flux:heading>
-        <flux:text size="sm" class="text-zinc-500">{{ __('Where your money goes, per currency. Amounts are never mixed across currencies.') }}</flux:text>
+        <flux:subheading>{{ __('Where your money goes, per currency. Amounts are never mixed across currencies.') }}</flux:subheading>
     </header>
 
     @if ($this->currencies->isEmpty())

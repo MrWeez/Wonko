@@ -56,12 +56,14 @@ new #[Title('Dashboard')] class extends Component {
     }
 
     /**
-     * @return Collection<int, Transaction>
+     * Recent transactions collapsed into visual groups (split legs merged).
+     *
+     * @return Collection<int, Collection<int, Transaction>>
      */
     #[Computed]
     public function recentTransactions(): Collection
     {
-        return Transaction::query()
+        $rows = Transaction::query()
             ->with(['account', 'category', 'paymentMethod', 'relatedTransaction.account'])
             ->where(function ($query): void {
                 $query
@@ -72,6 +74,22 @@ new #[Title('Dashboard')] class extends Component {
             ->orderByDesc('id')
             ->limit(7)
             ->get();
+
+        $groups = [];
+        $indexes = [];
+
+        foreach ($rows as $transaction) {
+            $key = $transaction->split_group_id ? 'split:'.$transaction->split_group_id : 'single:'.$transaction->id;
+
+            if (! array_key_exists($key, $indexes)) {
+                $indexes[$key] = count($groups);
+                $groups[] = collect();
+            }
+
+            $groups[$indexes[$key]]->push($transaction);
+        }
+
+        return collect($groups);
     }
 
     public function quickConfirmSubscription(int $subscriptionId): void
@@ -256,78 +274,93 @@ new #[Title('Dashboard')] class extends Component {
                             <th class="py-3 text-end font-medium">{{ __('Amount') }}</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                        @forelse ($this->recentTransactions as $tx)
-                            <tr wire:key="dash-tx-{{ $tx->id }}">
-                                <td class="py-3 pe-4 text-zinc-500">{{ $tx->transaction_date->format('Y-m-d') }}</td>
-                                <td class="py-3 pe-4 font-medium text-zinc-900 dark:text-zinc-100">
-                                    {{ $tx->description ?? __('Untitled') }}
-                                    @if ($tx->split_group_id)
-                                        <span class="ms-1 text-xs text-zinc-500">({{ __('Split') }})</span>
-                                    @endif
-                                </td>
-                                <td class="py-3 pe-4">
-                                    @if ($tx->category)
-                                        <span class="inline-flex items-center gap-1.5">
-                                            <span class="size-2 rounded-full" style="background-color: {{ $tx->category->color }}" aria-hidden="true"></span>
-                                            {{ $tx->category->name }}
-                                        </span>
-                                    @else
-                                        <span class="text-zinc-400">—</span>
-                                    @endif
-                                </td>
-                                <td class="py-3 pe-4">
-                                    @if ($tx->type === TransactionType::Transfer)
-                                        <div class="space-y-1">
-                                            <div class="flex flex-wrap items-center gap-1 text-sm">
-                                                <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $tx->account->name }}</span>
-                                                <flux:icon icon="arrow-right" class="size-3.5 shrink-0 text-zinc-400" />
-                                                <span class="text-zinc-600 dark:text-zinc-400">{{ $tx->relatedTransaction?->account?->name ?? __('Unknown') }}</span>
-                                            </div>
-                                            <flux:badge size="sm" color="blue">{{ __('Internal Transfer') }}</flux:badge>
-                                        </div>
-                                    @else
-                                        <span class="text-zinc-600 dark:text-zinc-400">{{ $tx->account->name }}</span>
-                                    @endif
-                                </td>
-                                <td class="py-3 text-end">
-                                    @if ($tx->type === TransactionType::Transfer)
-                                        @php($dest = $tx->relatedTransaction)
-                                        <div class="space-y-0.5">
-                                            <div class="font-medium text-red-600 dark:text-red-400">
-                                                −{{ number_format((float) $tx->amount, 2) }} {{ $tx->currency }}
-                                            </div>
-                                            @if ($dest)
-                                                <div class="text-xs font-medium text-green-600 dark:text-green-400">
-                                                    +{{ number_format((float) $dest->amount, 2) }} {{ $dest->currency }}
+<tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                        @forelse ($this->recentTransactions as $group)
+                            @php($first = $group->first())
+                            @if ($first->split_group_id && $group->count() > 1)
+                                @php($total = $group->reduce(fn (float $carry, $transaction): float => $carry + (float) $transaction->amount, 0.0))
+                                @php($sign = $first->type === TransactionType::Income ? '+' : '−')
+                                <tr wire:key="dash-split-{{ $first->split_group_id }}" class="bg-zinc-50/60 dark:bg-zinc-800/40">
+                                    <td class="py-3 pe-4 text-zinc-500">{{ $first->transaction_date->format('Y-m-d') }}</td>
+                                    <td class="py-3 pe-4">
+                                        <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $first->description ?? __('Untitled') }}</span>
+                                        <span class="ms-1 text-xs text-zinc-500">({{ __('Split') }} · {{ $group->count() }})</span>
+                                    </td>
+                                    <td class="py-3 pe-4">
+                                        @if ($first->category)
+                                            <span class="inline-flex items-center gap-1.5">
+                                                <span class="size-2 rounded-full" style="background-color: {{ $first->category->color }}" aria-hidden="true"></span>
+                                                {{ $first->category->name }}
+                                            </span>
+                                        @else
+                                            <span class="text-zinc-400">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-3 pe-4"></td>
+                                    <td class="py-3 text-end font-medium text-zinc-900 dark:text-zinc-100">{{ $sign }}{{ number_format($total, 2) }} {{ $first->currency }}</td>
+                                </tr>
+                                @foreach ($group as $leg)
+                                    <tr wire:key="dash-split-leg-{{ $leg->id }}">
+                                        <td class="py-2 pe-4"></td>
+                                        <td class="py-2 pe-4 border-s-2 border-zinc-300 ps-4 dark:border-zinc-600"></td>
+                                        <td class="py-2 pe-4"></td>
+                                        <td class="py-2 pe-4 ps-8 text-zinc-700 dark:text-zinc-300">{{ $leg->account->name }}</td>
+                                        <td class="py-2 text-end text-zinc-600 dark:text-zinc-400">{{ $sign }}{{ number_format((float) $leg->amount, 2) }} {{ $leg->currency }}</td>
+                                    </tr>
+                                @endforeach
+                            @else
+                                <tr wire:key="dash-tx-{{ $first->id }}">
+                                    <td class="py-3 pe-4 text-zinc-500">{{ $first->transaction_date->format('Y-m-d') }}</td>
+                                    <td class="py-3 pe-4 font-medium text-zinc-900 dark:text-zinc-100">{{ $first->description ?? __('Untitled') }}</td>
+                                    <td class="py-3 pe-4">
+                                        @if ($first->category)
+                                            <span class="inline-flex items-center gap-1.5">
+                                                <span class="size-2 rounded-full" style="background-color: {{ $first->category->color }}" aria-hidden="true"></span>
+                                                {{ $first->category->name }}
+                                            </span>
+                                        @else
+                                            <span class="text-zinc-400">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-3 pe-4">
+                                        @if ($first->type === TransactionType::Transfer)
+                                            <div class="space-y-1">
+                                                <div class="flex flex-wrap items-center gap-1 text-sm">
+                                                    <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $first->account->name }}</span>
+                                                    <flux:icon icon="arrow-right" class="size-3.5 shrink-0 text-zinc-400" />
+                                                    <span class="text-zinc-600 dark:text-zinc-400">{{ $first->relatedTransaction?->account?->name ?? __('Unknown') }}</span>
                                                 </div>
-                                            @endif
-                                        </div>
-                                    @elseif ($tx->type === TransactionType::Income)
-                                        <div class="space-y-0.5">
+                                                <flux:badge size="sm" color="blue">{{ __('Internal Transfer') }}</flux:badge>
+                                            </div>
+                                        @else
+                                            <span class="text-zinc-600 dark:text-zinc-400">{{ $first->account->name }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-3 text-end">
+                                        @if ($first->type === TransactionType::Transfer)
+                                            @php($dest = $first->relatedTransaction)
+                                            <div class="space-y-0.5">
+                                                <div class="font-medium text-red-600 dark:text-red-400">
+                                                    −{{ number_format((float) $first->amount, 2) }} {{ $first->currency }}
+                                                </div>
+                                                @if ($dest)
+                                                    <div class="text-xs font-medium text-green-600 dark:text-green-400">
+                                                        +{{ number_format((float) $dest->amount, 2) }} {{ $dest->currency }}
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @elseif ($first->type === TransactionType::Income)
                                             <div class="font-medium text-green-600 dark:text-green-400">
-                                                +{{ number_format((float) $tx->amount, 2) }} {{ $tx->currency }}
+                                                +{{ number_format((float) $first->amount, 2) }} {{ $first->currency }}
                                             </div>
-                                            @if ($tx->account_amount !== null)
-                                                <div class="text-xs text-zinc-500">
-                                                    +{{ number_format((float) $tx->account_amount, 2) }} {{ $tx->account->currency }}
-                                                </div>
-                                            @endif
-                                        </div>
-                                    @else
-                                        <div class="space-y-0.5">
+                                        @else
                                             <div class="font-medium text-zinc-900 dark:text-zinc-100">
-                                                −{{ number_format((float) $tx->amount, 2) }} {{ $tx->currency }}
+                                                −{{ number_format((float) $first->amount, 2) }} {{ $first->currency }}
                                             </div>
-                                            @if ($tx->account_amount !== null)
-                                                <div class="text-xs text-zinc-500">
-                                                    {{ number_format((float) $tx->account_amount, 2) }} {{ $tx->account->currency }}
-                                                </div>
-                                            @endif
-                                        </div>
-                                    @endif
-                                </td>
-                            </tr>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endif
                         @empty
                             <tr>
                                 <td colspan="5" class="py-6 text-center text-zinc-500">{{ __('No recent transactions.') }}</td>
