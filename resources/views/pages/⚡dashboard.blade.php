@@ -274,22 +274,22 @@ new #[Title('Dashboard')] class extends Component {
                             <th class="py-3 text-end font-medium">{{ __('Amount') }}</th>
                         </tr>
                     </thead>
-<tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+<tbody class="divide-y divide-zinc-200 dark:divide-zinc-700" x-data="{ splitOpen: {} }">
                         @forelse ($this->recentTransactions as $group)
                             @php($first = $group->first())
                             @if ($first->split_group_id && $group->count() > 1)
                                 @php($total = $group->reduce(fn (float $carry, $transaction): float => $carry + (float) $transaction->amount, 0.0))
                                 @php($sign = $first->type === TransactionType::Income ? '+' : '−')
-                                <tr wire:key="dash-split-{{ $first->split_group_id }}" x-data="{ splitOpen: false }">
+                                <tr wire:key="dash-split-{{ $first->split_group_id }}">
                                     <td class="py-3 pe-3">
                                         <div class="flex items-center gap-1.5">
                                             <button
                                                 type="button"
                                                 class="-ms-1 inline-flex size-6 shrink-0 items-center justify-center rounded text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                                                @click="splitOpen = !splitOpen"
-                                                :aria-label="splitOpen ? '{{ __('Collapse split') }}' : '{{ __('Expand split') }}'"
+                                                @click="splitOpen['{{ $first->split_group_id }}'] = ! splitOpen['{{ $first->split_group_id }}']"
+                                                :aria-label="splitOpen['{{ $first->split_group_id }}'] ? '{{ __('Collapse split') }}' : '{{ __('Expand split') }}'"
                                             >
-                                                <flux:icon icon="chevron-right" class="size-4 transition-transform" x-bind:class="splitOpen === true ? 'rotate-180' : ''" />
+                                                <flux:icon icon="chevron-right" class="size-4 transition-transform" x-bind:class="splitOpen['{{ $first->split_group_id }}'] === true ? 'rotate-180' : ''" />
                                             </button>
                                             <span class="text-zinc-500">{{ $first->transaction_date->format('Y-m-d') }}</span>
                                         </div>
@@ -317,7 +317,7 @@ new #[Title('Dashboard')] class extends Component {
                                     </td>
                                     <td class="py-3 text-end font-medium text-zinc-900 dark:text-zinc-100">{{ $sign }}{{ number_format($total, 2) }} {{ $first->currency }}</td>
                                 </tr>
-                                <tr wire:key="dash-split-detail-{{ $first->split_group_id }}" x-show="splitOpen" x-cloak>
+                                <tr wire:key="dash-split-detail-{{ $first->split_group_id }}" x-show="splitOpen['{{ $first->split_group_id }}']" x-cloak>
                                     <td colspan="5" class="px-5 pb-4 ps-12">
                                         <div class="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
                                             <table class="w-full text-sm">
