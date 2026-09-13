@@ -154,16 +154,16 @@ new #[Title('Reports')] class extends Component {
         <div class="grid gap-4 sm:grid-cols-3">
             <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:text size="xs" class="text-zinc-500">{{ __('Income') }} <span class="text-zinc-400">· {{ __('incl. transfers') }}</span></flux:text>
-                <flux:heading size="lg" class="mt-1">+{{ number_format((float) $totals['income'], 2) }} {{ $this->currency }}</flux:heading>
+                <flux:heading size="lg" class="mt-1">+{{ App\Amount::display((string) $totals['income']) }} {{ $this->currency }}</flux:heading>
             </div>
             <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:text size="xs" class="text-zinc-500">{{ __('Expense') }} <span class="text-zinc-400">· {{ __('incl. transfers') }}</span></flux:text>
-                <flux:heading size="lg" class="mt-1">−{{ number_format((float) $totals['expense'], 2) }} {{ $this->currency }}</flux:heading>
+                <flux:heading size="lg" class="mt-1">−{{ App\Amount::display((string) $totals['expense']) }} {{ $this->currency }}</flux:heading>
             </div>
             <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:text size="xs" class="text-zinc-500">{{ __('Net') }}</flux:text>
                 <flux:heading size="lg" class="mt-1">
-                    {{ (float) $totals['net'] >= 0 ? '+' : '−' }}{{ number_format(abs((float) $totals['net']), 2) }} {{ $this->currency }}
+                    {{ (float) $totals['net'] >= 0 ? '+' : '−' }}{{ App\Amount::display((string) abs((float) $totals['net'])) }} {{ $this->currency }}
                 </flux:heading>
             </div>
         </div>
@@ -221,8 +221,8 @@ new #[Title('Reports')] class extends Component {
                     <div class="trend-scroll overflow-x-auto pb-0.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600" @scroll.passive="align()">
                         <div class="flex h-44 w-max min-w-full items-end">
                             @foreach ($trend as $bucket)
-                                @php($incomeTooltip = '+'.number_format((float) $bucket['income'], 2).' '.$this->currency)
-                                @php($expenseTooltip = '−'.number_format((float) $bucket['expense'], 2).' '.$this->currency)
+                                @php($incomeTooltip = '+'.App\Amount::display((string) $bucket['income']).' '.$this->currency)
+                                @php($expenseTooltip = '−'.App\Amount::display((string) $bucket['expense']).' '.$this->currency)
                                 <div class="group relative flex min-w-6 flex-1 flex-col items-center gap-1" @mouseenter="setTip($event.currentTarget)" @mouseleave="clear()">
                                     <div class="trend-tip pointer-events-none absolute bottom-9 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
                                         <div class="font-medium">{{ $bucket['label'] }}</div>
@@ -294,7 +294,7 @@ new #[Title('Reports')] class extends Component {
                                         <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ $category['name'] }}</span>
                                     </div>
                                     <span class="text-zinc-600 dark:text-zinc-400">
-                                        {{ number_format((float) $category['amount'], 2) }} {{ $this->currency }}
+                                        {{ App\Amount::display((string) $category['amount']) }} {{ $this->currency }}
                                         <span class="text-zinc-400">· {{ $category['share'] }}%</span>
                                     </span>
                                 </div>
@@ -324,19 +324,19 @@ new #[Title('Reports')] class extends Component {
                     <div class="mt-4 grid gap-3 sm:grid-cols-2">
                         <div class="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                             <flux:text size="xs" class="text-zinc-500">{{ __('Recurring') }}</flux:text>
-                            <flux:heading size="lg" class="mt-1">{{ number_format((float) $subscriptions['recurring'], 2) }} {{ $this->currency }}</flux:heading>
+                            <flux:heading size="lg" class="mt-1">{{ App\Amount::display((string) $subscriptions['recurring']) }} {{ $this->currency }}</flux:heading>
                             <flux:text size="xs" class="text-zinc-500">{{ __(':count payment(s)', ['count' => $subscriptions['recurring_count']]) }}</flux:text>
                         </div>
                         <div class="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                             <flux:text size="xs" class="text-zinc-500">{{ __('Discretionary') }}</flux:text>
-                            <flux:heading size="lg" class="mt-1">{{ number_format((float) $subscriptions['discretionary'], 2) }} {{ $this->currency }}</flux:heading>
+                            <flux:heading size="lg" class="mt-1">{{ App\Amount::display((string) $subscriptions['discretionary']) }} {{ $this->currency }}</flux:heading>
                         </div>
                     </div>
 
                     <div class="mt-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                         <div class="flex items-center justify-between">
                             <flux:text size="sm" class="font-medium">{{ __('Forecast: next period') }}</flux:text>
-                            <flux:text size="sm" class="font-semibold">{{ number_format((float) $subscriptions['forecast'], 2) }} {{ $this->currency }}</flux:text>
+                            <flux:text size="sm" class="font-semibold">{{ App\Amount::display((string) $subscriptions['forecast']) }} {{ $this->currency }}</flux:text>
                         </div>
                         <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('From active subscriptions due in the period after this report.') }}</flux:text>
                     </div>
@@ -346,7 +346,7 @@ new #[Title('Reports')] class extends Component {
                             @foreach ($subscriptions['by_subscription'] as $subscription)
                                 <div class="flex items-center justify-between text-sm">
                                     <span class="text-zinc-700 dark:text-zinc-300">{{ $subscription['name'] }}</span>
-                                    <span class="text-zinc-600 dark:text-zinc-400">{{ number_format((float) $subscription['amount'], 2) }} {{ $this->currency }}</span>
+                                    <span class="text-zinc-600 dark:text-zinc-400">{{ App\Amount::display((string) $subscription['amount']) }} {{ $this->currency }}</span>
                                 </div>
                             @endforeach
                         </div>
@@ -379,10 +379,10 @@ new #[Title('Reports')] class extends Component {
                                         {{ $account['name'] }}
                                         <span class="block text-xs text-zinc-500">{{ $account['bank'] ?? __('No bank') }}</span>
                                     </td>
-                                    <td class="py-2.5 pe-4 text-end text-zinc-600 dark:text-zinc-400">+{{ number_format((float) $account['income'], 2) }}</td>
-                                    <td class="py-2.5 pe-4 text-end text-zinc-600 dark:text-zinc-400">−{{ number_format((float) $account['expense'], 2) }}</td>
+                                    <td class="py-2.5 pe-4 text-end text-zinc-600 dark:text-zinc-400">+{{ App\Amount::display((string) $account['income']) }}</td>
+                                    <td class="py-2.5 pe-4 text-end text-zinc-600 dark:text-zinc-400">−{{ App\Amount::display((string) $account['expense']) }}</td>
                                     <td class="py-2.5 text-end font-semibold text-zinc-900 dark:text-zinc-100">
-                                        {{ (float) $account['net'] >= 0 ? '+' : '−' }}{{ number_format(abs((float) $account['net']), 2) }}
+                                        {{ (float) $account['net'] >= 0 ? '+' : '−' }}{{ App\Amount::display((string) abs((float) $account['net'])) }}
                                     </td>
                                 </tr>
                             @endforeach
@@ -411,10 +411,10 @@ new #[Title('Reports')] class extends Component {
                             @foreach ($this->report->byBank() as $bank)
                                 <tr>
                                     <td class="py-2.5 pe-4 text-zinc-800 dark:text-zinc-200">{{ $bank['bank'] }}</td>
-                                    <td class="py-2.5 pe-4 text-end text-zinc-600 dark:text-zinc-400">+{{ number_format((float) $bank['income'], 2) }}</td>
-                                    <td class="py-2.5 pe-4 text-end text-zinc-600 dark:text-zinc-400">−{{ number_format((float) $bank['expense'], 2) }}</td>
+                                    <td class="py-2.5 pe-4 text-end text-zinc-600 dark:text-zinc-400">+{{ App\Amount::display((string) $bank['income']) }}</td>
+                                    <td class="py-2.5 pe-4 text-end text-zinc-600 dark:text-zinc-400">−{{ App\Amount::display((string) $bank['expense']) }}</td>
                                     <td class="py-2.5 text-end font-semibold text-zinc-900 dark:text-zinc-100">
-                                        {{ (float) $bank['net'] >= 0 ? '+' : '−' }}{{ number_format(abs((float) $bank['net']), 2) }}
+                                        {{ (float) $bank['net'] >= 0 ? '+' : '−' }}{{ App\Amount::display((string) abs((float) $bank['net'])) }}
                                     </td>
                                 </tr>
                             @endforeach

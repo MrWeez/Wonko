@@ -49,7 +49,7 @@
                                         {{ $notification->data['subscription_name'] ?? __('Subscription due') }}
                                     </flux:text>
                                     <flux:text size="xs" class="text-zinc-500">
-                                        {{ $notification->data['amount'] ?? '' }} {{ $notification->data['currency'] ?? '' }} · {{ $notification->data['due_date'] ?? '' }}
+                                        {{ App\Amount::display((string) ($notification->data['amount'] ?? '0')) }} {{ $notification->data['currency'] ?? '' }} · {{ $notification->data['due_date'] ?? '' }}
                                     </flux:text>
                                 </div>
                             </div>

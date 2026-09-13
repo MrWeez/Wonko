@@ -974,7 +974,7 @@ new #[Title('Transactions')] class extends Component {
                                     @endif
                                 </td>
                                 <td class="py-3 pe-4 text-end font-semibold text-zinc-900 dark:text-zinc-100">
-                                    {{ $sign }}{{ number_format($total, 2) }} {{ $first->currency }}
+                                    {{ $sign }}{{ App\Amount::display((string) $total) }} {{ $first->currency }}
                                 </td>
                                 <td class="py-3 text-end">
                                     <div class="flex justify-end gap-1">
@@ -1000,7 +1000,7 @@ new #[Title('Transactions')] class extends Component {
                                                     <td class="py-2 pe-4 text-zinc-500">#{{ $index + 1 }}</td>
                                                     <td class="py-2 pe-4 font-medium text-zinc-800 dark:text-zinc-200">{{ $leg->account->name }}</td>
                                                     <td class="py-2 pe-4 text-zinc-600 dark:text-zinc-400">{{ $leg->paymentMethod?->name ?? '—' }}</td>
-                                                    <td class="py-2 pe-4 text-end text-zinc-700 dark:text-zinc-300">{{ $sign }}{{ number_format((float) $leg->amount, 2) }} {{ $leg->currency }}</td>
+                                                    <td class="py-2 pe-4 text-end text-zinc-700 dark:text-zinc-300">{{ $sign }}{{ App\Amount::display((string) $leg->amount) }} {{ $leg->currency }}</td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -1042,38 +1042,38 @@ new #[Title('Transactions')] class extends Component {
                                         @php($dest = $first->relatedTransaction)
                                         <div class="space-y-0.5">
                                             <div class="font-semibold text-red-600 dark:text-red-400">
-                                                −{{ number_format((float) $first->amount, 2) }} {{ $first->currency }}
+                                                −{{ App\Amount::display((string) $first->amount) }} {{ $first->currency }}
                                             </div>
                                             @if ($dest)
                                                 <div class="text-xs font-medium text-green-600 dark:text-green-400">
-                                                    +{{ number_format((float) $dest->amount, 2) }} {{ $dest->currency }}
+                                                    +{{ App\Amount::display((string) $dest->amount) }} {{ $dest->currency }}
                                                 </div>
                                             @endif
                                             @if ($first->account_amount !== null)
                                                 <div class="text-xs text-zinc-400">
-                                                    {{ __('charged') }}: {{ number_format((float) $first->account_amount, 2) }} {{ $first->account->currency }}
+                                                    {{ __('charged') }}: {{ App\Amount::display((string) $first->account_amount) }} {{ $first->account->currency }}
                                                 </div>
                                             @endif
                                         </div>
                                     @elseif ($first->type === TransactionType::Income)
                                         <div class="space-y-0.5">
                                             <div class="font-semibold text-green-600 dark:text-green-400">
-                                                +{{ number_format((float) $first->amount, 2) }} {{ $first->currency }}
+                                                +{{ App\Amount::display((string) $first->amount) }} {{ $first->currency }}
                                             </div>
                                             @if ($first->account_amount !== null)
                                                 <div class="text-xs text-zinc-500">
-                                                    {{ __('credited') }}: +{{ number_format((float) $first->account_amount, 2) }} {{ $first->account->currency }}
+                                                    {{ __('credited') }}: +{{ App\Amount::display((string) $first->account_amount) }} {{ $first->account->currency }}
                                                 </div>
                                             @endif
                                         </div>
                                     @else
                                         <div class="space-y-0.5">
                                             <div class="font-semibold text-zinc-900 dark:text-zinc-100">
-                                                −{{ number_format((float) $first->amount, 2) }} {{ $first->currency }}
+                                                −{{ App\Amount::display((string) $first->amount) }} {{ $first->currency }}
                                             </div>
                                             @if ($first->account_amount !== null)
                                                 <div class="text-xs text-zinc-500">
-                                                    {{ __('debited') }}: {{ number_format((float) $first->account_amount, 2) }} {{ $first->account->currency }}
+                                                    {{ __('debited') }}: {{ App\Amount::display((string) $first->account_amount) }} {{ $first->account->currency }}
                                                 </div>
                                             @endif
                                         </div>

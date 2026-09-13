@@ -503,7 +503,7 @@ new #[Title('Subscriptions')] class extends Component {
                                 @endif
                             </div>
                             <div class="mt-1 text-xs text-zinc-500">
-                                <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ $subscription->amount }} {{ $subscription->currency }}</span>
+                                <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ App\Amount::display((string) $subscription->amount) }} {{ $subscription->currency }}</span>
                                 · {{ __('Every :count :unit', ['count' => $subscription->period_count, 'unit' => ucfirst($subscription->period_unit->value)]) }}
                                 · {{ $subscription->account->name }}
                                 @if ($subscription->paymentMethod)
@@ -528,7 +528,7 @@ new #[Title('Subscriptions')] class extends Component {
                         <div class="ps-4 text-xs text-zinc-500">
                             {{ __('Recent occurrences (:count total):', ['count' => $subscription->occurrences->count()]) }}
                             @foreach ($subscription->occurrences->take(3) as $occurrence)
-                                <span class="ms-2 rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">{{ $occurrence->due_date->format('Y-m-d') }} ({{ $occurrence->amount }} {{ $occurrence->currency }})</span>
+                                <span class="ms-2 rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">{{ $occurrence->due_date->format('Y-m-d') }} ({{ App\Amount::display((string) $occurrence->amount) }} {{ $occurrence->currency }})</span>
                             @endforeach
                         </div>
                     @endif

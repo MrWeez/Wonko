@@ -174,7 +174,7 @@ new #[Title('Dashboard')] class extends Component {
                     <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-700 dark:bg-zinc-900">
                         <flux:text size="sm" class="text-zinc-500">{{ __('Net Total (:currency)', ['currency' => $currency]) }}</flux:text>
                         <div class="mt-2 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                            {{ number_format((float) $balance, 2) }} {{ $currency }}
+                            {{ App\Amount::display((string) $balance) }} {{ $currency }}
                         </div>
                     </div>
                 @endforeach
@@ -209,7 +209,7 @@ new #[Title('Dashboard')] class extends Component {
                             </div>
                             <div class="text-end">
                                 <div class="font-semibold text-zinc-900 dark:text-zinc-100">
-                                    {{ number_format((float) $account->balance(), 2) }} {{ $account->currency }}
+                                    {{ App\Amount::display((string) $account->balance()) }} {{ $account->currency }}
                                 </div>
                             </div>
                         </div>
@@ -238,7 +238,7 @@ new #[Title('Dashboard')] class extends Component {
                                     @endif
                                 </div>
                                 <div class="text-xs text-zinc-500">
-                                    {{ $sub->amount }} {{ $sub->currency }} · {{ __('Due') }} {{ $sub->next_due_date->format('M j, Y') }}
+                                    {{ App\Amount::display((string) $sub->amount) }} {{ $sub->currency }} · {{ __('Due') }} {{ $sub->next_due_date->format('M j, Y') }}
                                 </div>
                             </div>
                             <div>
@@ -315,7 +315,7 @@ new #[Title('Dashboard')] class extends Component {
                                             <span class="text-zinc-400">—</span>
                                         @endif
                                     </td>
-                                    <td class="py-3 text-end font-medium text-zinc-900 dark:text-zinc-100">{{ $sign }}{{ number_format($total, 2) }} {{ $first->currency }}</td>
+                                    <td class="py-3 text-end font-medium text-zinc-900 dark:text-zinc-100">{{ $sign }}{{ App\Amount::display((string) $total) }} {{ $first->currency }}</td>
                                 </tr>
                                 <tr wire:key="dash-split-detail-{{ $first->split_group_id }}" x-show="splitOpen['{{ $first->split_group_id }}']" x-cloak>
                                     <td colspan="5" class="px-5 pb-4 ps-12">
@@ -334,7 +334,7 @@ new #[Title('Dashboard')] class extends Component {
                                                         <td class="py-2 pe-4 text-zinc-500">#{{ $index + 1 }}</td>
                                                         <td class="py-2 pe-4 font-medium text-zinc-800 dark:text-zinc-200">{{ $leg->account->name }}</td>
                                                         <td class="py-2 pe-4 text-zinc-600 dark:text-zinc-400">{{ $leg->paymentMethod?->name ?? '—' }}</td>
-                                                        <td class="py-2 pe-4 text-end text-zinc-700 dark:text-zinc-300">{{ $sign }}{{ number_format((float) $leg->amount, 2) }} {{ $leg->currency }}</td>
+                                                        <td class="py-2 pe-4 text-end text-zinc-700 dark:text-zinc-300">{{ $sign }}{{ App\Amount::display((string) $leg->amount) }} {{ $leg->currency }}</td>
                                                     </tr>
                                                 @endforeach
                                             </tbody>
@@ -374,21 +374,21 @@ new #[Title('Dashboard')] class extends Component {
                                             @php($dest = $first->relatedTransaction)
                                             <div class="space-y-0.5">
                                                 <div class="font-medium text-red-600 dark:text-red-400">
-                                                    −{{ number_format((float) $first->amount, 2) }} {{ $first->currency }}
+                                                    −{{ App\Amount::display((string) $first->amount) }} {{ $first->currency }}
                                                 </div>
                                                 @if ($dest)
                                                     <div class="text-xs font-medium text-green-600 dark:text-green-400">
-                                                        +{{ number_format((float) $dest->amount, 2) }} {{ $dest->currency }}
+                                                        +{{ App\Amount::display((string) $dest->amount) }} {{ $dest->currency }}
                                                     </div>
                                                 @endif
                                             </div>
                                         @elseif ($first->type === TransactionType::Income)
                                             <div class="font-medium text-green-600 dark:text-green-400">
-                                                +{{ number_format((float) $first->amount, 2) }} {{ $first->currency }}
+                                                +{{ App\Amount::display((string) $first->amount) }} {{ $first->currency }}
                                             </div>
                                         @else
                                             <div class="font-medium text-zinc-900 dark:text-zinc-100">
-                                                −{{ number_format((float) $first->amount, 2) }} {{ $first->currency }}
+                                                −{{ App\Amount::display((string) $first->amount) }} {{ $first->currency }}
                                             </div>
                                         @endif
                                     </td>

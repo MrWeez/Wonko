@@ -298,7 +298,7 @@ new #[Title('Accounts')] class extends Component {
                                     <div class="text-xs text-zinc-500">{{ $account->bank?->name ?? __('No bank') }}</div>
                                 </td>
                                 <td class="py-3 pe-4 text-end font-semibold text-zinc-900 dark:text-zinc-100">
-                                    {{ number_format((float) $account->balance(), 2) }} {{ $account->currency }}
+                                    {{ App\Amount::display((string) $account->balance()) }} {{ $account->currency }}
                                 </td>
                                 <td class="py-3 text-end">
                                     <div class="flex justify-end gap-1">
