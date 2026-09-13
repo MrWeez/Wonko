@@ -952,28 +952,26 @@ new #[Title('Transactions')] class extends Component {
                             </tr>
                             <tr wire:key="split-detail-{{ $first->split_group_id }}" x-show="splitOpen['{{ $first->split_group_id }}']" x-cloak>
                                 <td colspan="6" class="px-5 pb-4 ps-12">
-                                    <div class="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-                                        <table class="w-full text-sm">
-                                            <thead class="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                                    <table class="w-full text-sm">
+                                        <thead class="border-b border-zinc-200 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                                            <tr>
+                                                <th class="py-2 pe-4 text-start font-medium">{{ __('Part') }}</th>
+                                                <th class="py-2 pe-4 text-start font-medium">{{ __('Account') }}</th>
+                                                <th class="py-2 pe-4 text-start font-medium">{{ __('Method') }}</th>
+                                                <th class="py-2 pe-4 text-end font-medium">{{ __('Amount') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                                            @foreach ($group as $index => $leg)
                                                 <tr>
-                                                    <th class="px-4 py-2 text-start font-medium">{{ __('Part') }}</th>
-                                                    <th class="px-4 py-2 text-start font-medium">{{ __('Account') }}</th>
-                                                    <th class="px-4 py-2 text-start font-medium">{{ __('Method') }}</th>
-                                                    <th class="px-4 py-2 text-end font-medium">{{ __('Amount') }}</th>
+                                                    <td class="py-2 pe-4 text-zinc-500">#{{ $index + 1 }}</td>
+                                                    <td class="py-2 pe-4 font-medium text-zinc-800 dark:text-zinc-200">{{ $leg->account->name }}</td>
+                                                    <td class="py-2 pe-4 text-zinc-600 dark:text-zinc-400">{{ $leg->paymentMethod?->name ?? '—' }}</td>
+                                                    <td class="py-2 pe-4 text-end text-zinc-700 dark:text-zinc-300">{{ $sign }}{{ number_format((float) $leg->amount, 2) }} {{ $leg->currency }}</td>
                                                 </tr>
-                                            </thead>
-                                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
-                                                @foreach ($group as $index => $leg)
-                                                    <tr>
-                                                        <td class="px-4 py-2 text-zinc-500">#{{ $index + 1 }}</td>
-                                                        <td class="px-4 py-2 font-medium text-zinc-800 dark:text-zinc-200">{{ $leg->account->name }}</td>
-                                                        <td class="px-4 py-2 text-zinc-600 dark:text-zinc-400">{{ $leg->paymentMethod?->name ?? '—' }}</td>
-                                                        <td class="px-4 py-2 text-end text-zinc-700 dark:text-zinc-300">{{ $sign }}{{ number_format((float) $leg->amount, 2) }} {{ $leg->currency }}</td>
-                                                    </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
                                 </td>
                             </tr>
                         @else
