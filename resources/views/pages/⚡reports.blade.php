@@ -241,16 +241,24 @@ new #[Title('Reports')] class extends Component {
                                             style="height: {{ round(((float) $bucket['expense'] / $this->chartMax) * 100, 1) }}%"
                                         ></div>
                                     </div>
-                                    <div class="max-w-full overflow-x-auto whitespace-nowrap px-0.5 text-[10px] leading-3 text-zinc-400 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600">{{ $bucket['day'] !== '' ? $bucket['day'] : $bucket['label'] }}</div>
+                                    @if ($bucket['day'] === '')
+                                        <div class="max-w-full whitespace-nowrap px-0.5 text-center text-[10px] leading-3 text-zinc-400">{{ $bucket['label'] }}</div>
+                                    @endif
                                 </div>
                             @endforeach
                         </div>
 
                         @if ($bands['show'])
-                            <div class="mt-2 flex h-6 w-max min-w-full items-center gap-1">
-                                @foreach ($bands['colors'] as $i => $bandClass)
-                                    <div class="flex h-full min-w-[40px] flex-1 items-center justify-center truncate px-0.5 text-[10px] font-medium {{ $bandClass }}">
-                                        {{ $bands['labels'][$i] }}
+                            <div class="mt-2 flex w-max min-w-full items-stretch gap-1">
+                                @foreach ($bands['months'] as $month)
+                                    @php($span = $month['end'] - $month['start'] + 1)
+                                    <div class="flex flex-col rounded {{ $month['class'] }}" style="flex: {{ $span }} 1 0; min-width: {{ $span * 40 }}px;">
+                                        <div class="flex items-center gap-1 px-1 pt-1.5">
+                                            @for ($i = $month['start']; $i <= $month['end']; $i++)
+                                                <span class="flex-1 text-center text-[10px]">{{ $trend[$i]['day'] }}</span>
+                                            @endfor
+                                        </div>
+                                        <div class="py-1 text-center text-[10px] font-medium">{{ $month['name'] }}</div>
                                     </div>
                                 @endforeach
                             </div>

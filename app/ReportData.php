@@ -214,21 +214,20 @@ class ReportData
     }
 
     /**
-     * Alternating color band and centered labels for the trend chart.
+     * Per-month segments for the trend calendar band.
      *
-     * @return array{show: bool, colors: array<int, string>, labels: array<int, string>}
+     * @return array{show: bool, months: list<array{start: int, end: int, name: string, class: string}>}
      */
     public function monthBandInfo(): array
     {
         $series = $this->timeSeries();
         $count = count($series);
-        $colors = array_fill(0, $count, '');
-        $labels = array_fill(0, $count, '');
         $colorA = 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200';
         $colorB = 'bg-zinc-300 text-zinc-700 dark:bg-zinc-600 dark:text-zinc-300';
+        $months = [];
         $toggle = 0;
         $month = null;
-        $color = '';
+        $class = '';
         $start = 0;
         $end = 0;
 
@@ -241,18 +240,12 @@ class ReportData
 
             if ($current !== $month) {
                 if ($month !== null) {
-                    $mid = intdiv($start + $end, 2);
-
-                    for ($j = $start; $j <= $end; $j++) {
-                        $colors[$j] = $color;
-                    }
-
-                    $labels[$mid] = $month;
+                    $months[] = ['start' => $start, 'end' => $end, 'name' => $month, 'class' => $class];
                 }
 
                 $toggle++;
                 $month = $current;
-                $color = $toggle % 2 === 1 ? $colorA : $colorB;
+                $class = $toggle % 2 === 1 ? $colorA : $colorB;
                 $start = $i;
                 $end = $i;
             } else {
@@ -261,19 +254,12 @@ class ReportData
         }
 
         if ($month !== null) {
-            $mid = intdiv($start + $end, 2);
-
-            for ($j = $start; $j <= $end; $j++) {
-                $colors[$j] = $color;
-            }
-
-            $labels[$mid] = $month;
+            $months[] = ['start' => $start, 'end' => $end, 'name' => $month, 'class' => $class];
         }
 
         return [
-            'show' => $month !== null,
-            'colors' => $colors,
-            'labels' => $labels,
+            'show' => $months !== [],
+            'months' => $months,
         ];
     }
 
