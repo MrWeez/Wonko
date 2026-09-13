@@ -902,16 +902,25 @@ new #[Title('Transactions')] class extends Component {
                         @if ($first->split_group_id && $group->count() > 1)
                             @php($total = $group->reduce(fn (float $carry, $transaction): float => $carry + (float) $transaction->amount, 0.0))
                             @php($sign = $first->type === TransactionType::Income ? '+' : '−')
-                            <tr wire:key="split-{{ $first->split_group_id }}" class="bg-zinc-50/60 dark:bg-zinc-800/40">
-                                <td class="py-3 pe-4 text-zinc-500">{{ $first->transaction_date->format('Y-m-d') }}</td>
+                            <tr wire:key="split-{{ $first->split_group_id }}" x-data="{ splitOpen: false }">
+                                <td class="py-3 pe-3">
+                                    <div class="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            class="-ms-1 inline-flex size-6 shrink-0 items-center justify-center rounded text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                            @click="splitOpen = !splitOpen"
+                                            :aria-label="splitOpen ? '{{ __('Collapse split') }}' : '{{ __('Expand split') }}'"
+                                        >
+                                            <flux:icon icon="chevron-right" class="size-4 transition-transform" x-bind:class="splitOpen === true ? 'rotate-180' : ''" />
+                                        </button>
+                                        <span class="text-zinc-500">{{ $first->transaction_date->format('Y-m-d') }}</span>
+                                    </div>
+                                </td>
                                 <td class="py-3 pe-4">
                                     <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $first->description ?? __('Untitled') }}</div>
                                     <div class="inline-flex items-center gap-1 text-xs text-zinc-500">
                                         <flux:icon icon="arrows-pointing-out" class="size-3" />
                                         <span>{{ __('Split') }} · {{ $group->count() }} {{ __('parts') }}</span>
-                                        @if ($first->paymentMethod)
-                                            <span>({{ $first->paymentMethod->name }})</span>
-                                        @endif
                                     </div>
                                 </td>
                                 <td class="py-3 pe-4">
@@ -924,7 +933,13 @@ new #[Title('Transactions')] class extends Component {
                                         <span class="text-zinc-400">—</span>
                                     @endif
                                 </td>
-                                <td class="py-3 pe-4"></td>
+                                <td class="py-3 pe-4">
+                                    @if ($first->paymentMethod)
+                                        <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ $first->paymentMethod->name }}</span>
+                                    @else
+                                        <span class="text-zinc-400">—</span>
+                                    @endif
+                                </td>
                                 <td class="py-3 pe-4 text-end font-semibold text-zinc-900 dark:text-zinc-100">
                                     {{ $sign }}{{ number_format($total, 2) }} {{ $first->currency }}
                                 </td>
@@ -935,16 +950,32 @@ new #[Title('Transactions')] class extends Component {
                                     </div>
                                 </td>
                             </tr>
-                            @foreach ($group as $leg)
-                                <tr wire:key="split-leg-{{ $leg->id }}">
-                                    <td class="py-2 pe-4"></td>
-                                    <td class="py-2 pe-4 border-s-2 border-zinc-300 ps-4 dark:border-zinc-600"></td>
-                                    <td class="py-2 pe-4"></td>
-                                    <td class="py-2 pe-4 ps-8 text-zinc-700 dark:text-zinc-300">{{ $leg->account->name }}</td>
-                                    <td class="py-2 pe-4 text-end text-zinc-600 dark:text-zinc-400">{{ $sign }}{{ number_format((float) $leg->amount, 2) }} {{ $leg->currency }}</td>
-                                    <td class="py-2"></td>
-                                </tr>
-                            @endforeach
+                            <tr wire:key="split-detail-{{ $first->split_group_id }}" x-show="splitOpen" x-cloak>
+                                <td colspan="6" class="px-5 pb-4 ps-12">
+                                    <div class="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+                                        <table class="w-full text-sm">
+                                            <thead class="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                                                <tr>
+                                                    <th class="px-4 py-2 text-start font-medium">{{ __('Part') }}</th>
+                                                    <th class="px-4 py-2 text-start font-medium">{{ __('Account') }}</th>
+                                                    <th class="px-4 py-2 text-start font-medium">{{ __('Method') }}</th>
+                                                    <th class="px-4 py-2 text-end font-medium">{{ __('Amount') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                                @foreach ($group as $index => $leg)
+                                                    <tr>
+                                                        <td class="px-4 py-2 text-zinc-500">#{{ $index + 1 }}</td>
+                                                        <td class="px-4 py-2 font-medium text-zinc-800 dark:text-zinc-200">{{ $leg->account->name }}</td>
+                                                        <td class="px-4 py-2 text-zinc-600 dark:text-zinc-400">{{ $leg->paymentMethod?->name ?? '—' }}</td>
+                                                        <td class="px-4 py-2 text-end text-zinc-700 dark:text-zinc-300">{{ $sign }}{{ number_format((float) $leg->amount, 2) }} {{ $leg->currency }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
                         @else
                             <tr wire:key="transaction-{{ $first->id }}">
                                 <td class="py-3 pe-4 text-zinc-500">{{ $first->transaction_date->format('Y-m-d') }}</td>
