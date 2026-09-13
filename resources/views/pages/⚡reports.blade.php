@@ -219,7 +219,7 @@ new #[Title('Reports')] class extends Component {
                     class="relative mt-6"
                 >
                     <div class="trend-scroll overflow-x-auto pb-0.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600" @scroll.passive="align()">
-                        <div class="flex h-44 w-max min-w-full items-end gap-1">
+                        <div class="flex h-44 w-max min-w-full items-end">
                             @foreach ($trend as $bucket)
                                 @php($incomeTooltip = '+'.number_format((float) $bucket['income'], 2).' '.$this->currency)
                                 @php($expenseTooltip = '−'.number_format((float) $bucket['expense'], 2).' '.$this->currency)
@@ -249,17 +249,15 @@ new #[Title('Reports')] class extends Component {
                         </div>
 
                         @if ($bands['show'])
-                            <div class="mt-2 flex w-max min-w-full items-stretch gap-1">
-                                @foreach ($bands['months'] as $month)
-                                    @php($span = $month['end'] - $month['start'] + 1)
-                                    <div class="flex flex-col rounded {{ $month['class'] }}" style="flex: {{ $span }} 1 0; min-width: {{ $span * 40 }}px;">
-                                        <div class="flex items-center gap-1 px-1 pt-1.5">
-                                            @for ($i = $month['start']; $i <= $month['end']; $i++)
-                                                <span class="flex-1 text-center text-[10px]">{{ $trend[$i]['day'] }}</span>
-                                            @endfor
-                                        </div>
-                                        <div class="py-1 text-center text-[10px] font-medium">{{ $month['name'] }}</div>
-                                    </div>
+                            <div
+                                class="mt-2 grid w-max min-w-full overflow-hidden rounded"
+                                style="grid-template-columns: repeat({{ count($trend) }}, minmax(40px, 1fr));"
+                            >
+                                @foreach ($trend as $i => $bucket)
+                                    <div class="px-0.5 py-1 text-center text-[10px] {{ $bands['cells'][$i]['class'] }}">{{ $bucket['day'] }}</div>
+                                @endforeach
+                                @foreach ($trend as $i => $bucket)
+                                    <div class="px-0.5 py-1 text-center text-[10px] font-medium {{ $bands['cells'][$i]['class'] }} {{ $bands['cells'][$i]['center'] ? '' : 'invisible' }}">{{ $bands['cells'][$i]['name'] }}</div>
                                 @endforeach
                             </div>
                         @endif

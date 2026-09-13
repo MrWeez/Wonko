@@ -214,17 +214,16 @@ class ReportData
     }
 
     /**
-     * Per-month segments for the trend calendar band.
+     * Per-column month cells for the trend calendar band.
      *
-     * @return array{show: bool, months: list<array{start: int, end: int, name: string, class: string}>}
+     * @return array{show: bool, cells: list<array{class: string, name: string, center: bool}>}
      */
     public function monthBandInfo(): array
     {
         $series = $this->timeSeries();
-        $count = count($series);
         $colorA = 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200';
         $colorB = 'bg-zinc-300 text-zinc-700 dark:bg-zinc-600 dark:text-zinc-300';
-        $months = [];
+        $cells = [];
         $toggle = 0;
         $month = null;
         $class = '';
@@ -235,12 +234,20 @@ class ReportData
             $current = $bucket['month'];
 
             if ($current === '') {
+                $cells[] = ['class' => '', 'name' => '', 'center' => false];
+
                 continue;
             }
 
             if ($current !== $month) {
                 if ($month !== null) {
-                    $months[] = ['start' => $start, 'end' => $end, 'name' => $month, 'class' => $class];
+                    $center = intdiv($start + $end, 2);
+
+                    for ($j = $start; $j <= $end; $j++) {
+                        $cells[$j]['class'] = $class;
+                        $cells[$j]['name'] = $month;
+                        $cells[$j]['center'] = $j === $center;
+                    }
                 }
 
                 $toggle++;
@@ -248,18 +255,26 @@ class ReportData
                 $class = $toggle % 2 === 1 ? $colorA : $colorB;
                 $start = $i;
                 $end = $i;
+                $cells[$i] = ['class' => $class, 'name' => $current, 'center' => false];
             } else {
                 $end = $i;
+                $cells[$i] = ['class' => $class, 'name' => $current, 'center' => false];
             }
         }
 
         if ($month !== null) {
-            $months[] = ['start' => $start, 'end' => $end, 'name' => $month, 'class' => $class];
+            $center = intdiv($start + $end, 2);
+
+            for ($j = $start; $j <= $end; $j++) {
+                $cells[$j]['class'] = $class;
+                $cells[$j]['name'] = $month;
+                $cells[$j]['center'] = $j === $center;
+            }
         }
 
         return [
-            'show' => $months !== [],
-            'months' => $months,
+            'show' => array_any($cells, fn (array $cell): bool => $cell['class'] !== ''),
+            'cells' => array_values($cells),
         ];
     }
 
