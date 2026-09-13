@@ -200,13 +200,13 @@ new #[Title('Reports')] class extends Component {
                                 return;
                             }
 
+                            const colCenter = col.left + col.width / 2;
                             const desiredCenter = Math.max(
                                 box.left + width / 2 + 6,
-                                Math.min(col.left + col.width / 2, box.right - width / 2 - 6),
+                                Math.min(colCenter, box.right - width / 2 - 6),
                             );
-                            const currentCenter = el.getBoundingClientRect().left + width / 2;
 
-                            el.style.marginLeft = (desiredCenter - currentCenter) + 'px';
+                            el.style.marginLeft = (desiredCenter - colCenter) + 'px';
                         },
                         clear: function () {
                             this.tip = null;
