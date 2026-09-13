@@ -178,14 +178,23 @@ new #[Title('Reports')] class extends Component {
             @else
                 <div class="mt-6 flex h-40 items-end gap-1">
                     @foreach ($this->report->timeSeries() as $bucket)
-                        <div class="flex flex-1 flex-col items-center gap-1" title="{{ $bucket['label'] }}: +{{ number_format((float) $bucket['income'], 2) }} / −{{ number_format((float) $bucket['expense'], 2) }}">
+                        @php($incomeTooltip = '+'.number_format((float) $bucket['income'], 2).' '.$this->currency)
+                        @php($expenseTooltip = '−'.number_format((float) $bucket['expense'], 2).' '.$this->currency)
+                        <div class="group relative flex flex-1 flex-col items-center gap-1">
+                            <div class="pointer-events-none absolute bottom-9 z-10 hidden whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
+                                <div class="font-medium">{{ $bucket['label'] }}</div>
+                                <div class="text-zinc-500 dark:text-zinc-400">{{ __('Income') }}: {{ $incomeTooltip }}</div>
+                                <div class="text-zinc-500 dark:text-zinc-400">{{ __('Expense') }}: {{ $expenseTooltip }}</div>
+                            </div>
                             <div class="flex h-36 w-full items-end justify-center gap-0.5">
                                 <div
                                     class="w-3 rounded-t bg-zinc-900 dark:bg-zinc-100"
+                                    title="{{ $incomeTooltip }}"
                                     style="height: {{ round(((float) $bucket['income'] / $this->chartMax) * 100, 1) }}%"
                                 ></div>
                                 <div
                                     class="w-3 rounded-t bg-zinc-300 dark:bg-zinc-600"
+                                    title="{{ $expenseTooltip }}"
                                     style="height: {{ round(((float) $bucket['expense'] / $this->chartMax) * 100, 1) }}%"
                                 ></div>
                             </div>

@@ -167,3 +167,18 @@ test('the reports page switches currency through the dropdown', function () {
     $page->set('currency', 'EUR')->assertSee('11.00');
     $page->set('currency', 'USD')->assertSee('7.00');
 });
+
+test('the reports page renders the trend tooltips when there is data', function () {
+    $user = User::factory()->create();
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    Transaction::factory()->expense()->forAccount($account)->create([
+        'amount' => '12.00',
+        'transaction_date' => now(),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('reports.index'))
+        ->assertOk()
+        ->assertSee('Income:')
+        ->assertSee('12.00');
+});
