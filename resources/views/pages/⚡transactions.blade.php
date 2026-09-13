@@ -27,15 +27,10 @@ new #[Title('Transactions')] class extends Component {
 
     public ?int $paymentMethodId = null;
 
-    public ?int $splitSecondaryAccountId = null;
-
-    public string $splitPrimaryAmount = '';
-
-    public string $splitSecondaryAmount = '';
-
-    public string $splitPrimaryAccountAmount = '';
-
-    public string $splitSecondaryAccountAmount = '';
+    /**
+     * @var list<array{account_id: int|null, amount: string, account_amount: string}>
+     */
+    public array $splitParts = [];
 
     public string $transactionDescription = '';
 
@@ -81,8 +76,9 @@ new #[Title('Transactions')] class extends Component {
         if ($destination) {
             $this->transferDestinationAccountId = $destination->id;
             $this->transferDestinationCurrency = $destination->currency;
-            $this->splitSecondaryAccountId = $destination->id;
         }
+
+        $this->splitParts = $this->defaultSplitParts();
     }
 
     /**
@@ -187,14 +183,13 @@ new #[Title('Transactions')] class extends Component {
             }
         } elseif ($mode === 'split') {
             $this->paymentMethodId = null;
-            if (! $this->splitSecondaryAccountId) {
-                $this->splitSecondaryAccountId = $this->accounts->first(fn ($a) => $a->id !== $this->transactionAccountId)?->id;
+
+            if ($this->splitParts === [] || $this->countActiveSplitAccounts() < 2) {
+                $this->splitParts = $this->defaultSplitParts();
             }
-            $this->splitPrimaryAmount = $this->transactionAmount;
-            $this->splitSecondaryAmount = '0';
         } else {
             $this->paymentMethodId = null;
-            $this->splitSecondaryAccountId = null;
+            $this->splitParts = [];
         }
     }
 
@@ -213,14 +208,17 @@ new #[Title('Transactions')] class extends Component {
     public function applyPaymentMethod(PaymentMethod $method): void
     {
         $this->transactionAccountId = $method->primary_account_id;
-        $this->splitSecondaryAccountId = $method->secondary_account_id;
+        $this->splitParts = [
+            ['account_id' => $method->primary_account_id, 'amount' => '', 'account_amount' => ''],
+            ['account_id' => $method->secondary_account_id, 'amount' => '', 'account_amount' => ''],
+        ];
         $this->transactionCurrency = $method->primaryAccount?->currency ?? $this->transactionCurrency;
 
         if ($this->transactionAmount !== '' && $method->auto_split_balance) {
             $this->recalculateSplit();
         } else {
-            $this->splitPrimaryAmount = $this->transactionAmount;
-            $this->splitSecondaryAmount = '0';
+            $this->splitParts[0]['amount'] = $this->transactionAmount;
+            $this->splitParts[1]['amount'] = '0';
         }
     }
 
@@ -231,12 +229,9 @@ new #[Title('Transactions')] class extends Component {
             if ($method?->auto_split_balance) {
                 $this->recalculateSplit();
             } else {
-                $this->splitPrimaryAmount = $amount;
-                $this->splitSecondaryAmount = '0';
+                $this->splitParts[0]['amount'] = $amount;
+                $this->splitParts[1]['amount'] = '0';
             }
-        } elseif ($this->paymentSourceMode === 'split') {
-            $this->splitPrimaryAmount = $amount;
-            $this->splitSecondaryAmount = '0';
         }
     }
 
@@ -252,8 +247,46 @@ new #[Title('Transactions')] class extends Component {
         }
 
         $splits = $method->calculateSplit($this->transactionAmount ?: '0');
-        $this->splitPrimaryAmount = (string) (float) $splits['primary_amount'];
-        $this->splitSecondaryAmount = (string) (float) $splits['secondary_amount'];
+        $this->splitParts[0]['amount'] = (string) (float) $splits['primary_amount'];
+        $this->splitParts[1]['amount'] = (string) (float) $splits['secondary_amount'];
+    }
+
+    public function addSplitPart(): void
+    {
+        $this->splitParts[] = ['account_id' => null, 'amount' => '', 'account_amount' => ''];
+    }
+
+    public function removeSplitPart(int $index): void
+    {
+        if (count($this->splitParts) <= 1) {
+            return;
+        }
+
+        unset($this->splitParts[$index]);
+        $this->splitParts = array_values($this->splitParts);
+    }
+
+    private function countActiveSplitAccounts(): int
+    {
+        return collect($this->splitParts)
+            ->pluck('account_id')
+            ->filter()
+            ->unique()
+            ->count();
+    }
+
+    /**
+     * @return list<array{account_id: int|null, amount: string, account_amount: string}>
+     */
+    private function defaultSplitParts(): array
+    {
+        $accountId = $this->transactionAccountId ?? $this->accounts->first()?->id;
+        $secondaryId = $this->accounts->first(fn (Account $candidate): bool => $candidate->id !== $accountId)?->id;
+
+        return [
+            ['account_id' => $accountId, 'amount' => '', 'account_amount' => ''],
+            ['account_id' => $secondaryId, 'amount' => '', 'account_amount' => ''],
+        ];
     }
 
     public function updatedTransferDestinationAccountId(?int $accountId): void
@@ -338,16 +371,7 @@ new #[Title('Transactions')] class extends Component {
 
     public function saveSplitTransaction(): void
     {
-        $primaryAccount = Account::query()->findOrFail($this->transactionAccountId);
-        $secondaryAccount = $this->splitSecondaryAccountId ? Account::query()->findOrFail($this->splitSecondaryAccountId) : null;
-
         $rules = [
-            'transactionAccountId' => ['required', Rule::exists('accounts', 'id')->where(fn ($query) => $query->where('user_id', auth()->id()))],
-            'splitSecondaryAccountId' => [
-                'nullable',
-                'different:transactionAccountId',
-                Rule::exists('accounts', 'id')->where(fn ($query) => $query->where('user_id', auth()->id())),
-            ],
             'paymentMethodId' => [
                 'nullable',
                 Rule::exists('payment_methods', 'id')->where(fn ($query) => $query->where('user_id', auth()->id())),
@@ -359,35 +383,41 @@ new #[Title('Transactions')] class extends Component {
             ],
             'transactionCurrency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
             'transactionAmount' => ['required', 'numeric', 'gt:0', 'decimal:0,4'],
-            'splitPrimaryAmount' => ['required', 'numeric', 'gte:0', 'decimal:0,4'],
-            'splitSecondaryAmount' => ['required', 'numeric', 'gte:0', 'decimal:0,4'],
             'transactionDate' => ['required', 'date'],
+            'splitParts' => ['required', 'array', 'min:1'],
+            'splitParts.*.account_id' => [
+                'required',
+                'distinct',
+                Rule::exists('accounts', 'id')->where(fn ($query) => $query->where('user_id', auth()->id())),
+            ],
+            'splitParts.*.amount' => ['required', 'numeric', 'gte:0', 'decimal:0,4'],
+            'splitParts.*.account_amount' => ['nullable', 'numeric', 'gt:0', 'decimal:0,4'],
         ];
 
-        if ($this->transactionCurrency !== $primaryAccount->currency && (float) $this->splitPrimaryAmount > 0) {
-            $rules['splitPrimaryAccountAmount'] = ['required', 'numeric', 'gt:0', 'decimal:0,4'];
-        } else {
-            $rules['splitPrimaryAccountAmount'] = ['nullable', 'numeric', 'gt:0', 'decimal:0,4'];
-        }
+        foreach ($this->splitParts as $index => $part) {
+            if ($part['account_id'] === null) {
+                continue;
+            }
 
-        if ($secondaryAccount && $this->transactionCurrency !== $secondaryAccount->currency && (float) $this->splitSecondaryAmount > 0) {
-            $rules['splitSecondaryAccountAmount'] = ['required', 'numeric', 'gt:0', 'decimal:0,4'];
-        } else {
-            $rules['splitSecondaryAccountAmount'] = ['nullable', 'numeric', 'gt:0', 'decimal:0,4'];
+            $account = Account::query()->find($part['account_id']);
+
+            if ($account && $this->transactionCurrency !== $account->currency && (float) $part['amount'] > 0) {
+                $rules["splitParts.$index.account_amount"] = ['required', 'numeric', 'gt:0', 'decimal:0,4'];
+            }
         }
 
         $validated = $this->validate($rules);
 
-        $totalSplit = (float) $validated['splitPrimaryAmount'] + (float) $validated['splitSecondaryAmount'];
+        $totalSplit = array_sum(array_map('floatval', array_column($validated['splitParts'], 'amount')));
         $expectedTotal = (float) $validated['transactionAmount'];
 
         if (abs($totalSplit - $expectedTotal) > 0.0001) {
             throw ValidationException::withMessages([
-                'splitPrimaryAmount' => __('The split amounts must sum to the total transaction amount (:total).', ['total' => $validated['transactionAmount']]),
+                'splitParts.0.amount' => __('The split amounts must sum to the total transaction amount (:total).', ['total' => $validated['transactionAmount']]),
             ]);
         }
 
-        DB::transaction(function () use ($validated, $primaryAccount, $secondaryAccount): void {
+        DB::transaction(function () use ($validated): void {
             if ($this->editingSplitGroupId) {
                 Transaction::query()->where('split_group_id', $this->editingSplitGroupId)->delete();
             } elseif ($this->editingTransactionId) {
@@ -396,42 +426,29 @@ new #[Title('Transactions')] class extends Component {
 
             $splitGroupId = (string) Str::uuid();
 
-            if ((float) $validated['splitPrimaryAmount'] > 0) {
-                $primaryTx = new Transaction;
-                $primaryTx->fill([
-                    'account_id' => $primaryAccount->id,
-                    'category_id' => $validated['transactionCategoryId'],
-                    'payment_method_id' => $this->paymentMethodId,
-                    'split_group_id' => $splitGroupId,
-                    'type' => TransactionType::Expense,
-                    'description' => $validated['transactionDescription'] ?: null,
-                    'currency' => $validated['transactionCurrency'],
-                    'amount' => $validated['splitPrimaryAmount'],
-                    'account_amount' => $this->transactionCurrency !== $primaryAccount->currency
-                        ? $validated['splitPrimaryAccountAmount']
-                        : null,
-                    'transaction_date' => $validated['transactionDate'],
-                ]);
-                $primaryTx->save();
-            }
+            foreach ($validated['splitParts'] as $part) {
+                if ((float) $part['amount'] <= 0) {
+                    continue;
+                }
 
-            if ($secondaryAccount && (float) $validated['splitSecondaryAmount'] > 0) {
-                $secondaryTx = new Transaction;
-                $secondaryTx->fill([
-                    'account_id' => $secondaryAccount->id,
+                $account = Account::query()->findOrFail($part['account_id']);
+
+                $transaction = new Transaction;
+                $transaction->fill([
+                    'account_id' => $account->id,
                     'category_id' => $validated['transactionCategoryId'],
                     'payment_method_id' => $this->paymentMethodId,
                     'split_group_id' => $splitGroupId,
                     'type' => TransactionType::Expense,
                     'description' => $validated['transactionDescription'] ?: null,
                     'currency' => $validated['transactionCurrency'],
-                    'amount' => $validated['splitSecondaryAmount'],
-                    'account_amount' => $this->transactionCurrency !== $secondaryAccount->currency
-                        ? $validated['splitSecondaryAccountAmount']
+                    'amount' => $part['amount'],
+                    'account_amount' => $this->transactionCurrency !== $account->currency
+                        ? ($part['account_amount'] ?? null)
                         : null,
                     'transaction_date' => $validated['transactionDate'],
                 ]);
-                $secondaryTx->save();
+                $transaction->save();
             }
         });
 
@@ -539,28 +556,17 @@ new #[Title('Transactions')] class extends Component {
             $this->paymentMethodId = $transaction->payment_method_id;
             $this->paymentSourceMode = $transaction->payment_method_id ? 'payment_method' : 'split';
 
-            $totalAmount = (string) $splits->sum('amount');
-            $this->transactionAmount = $totalAmount;
+            $this->transactionAmount = (string) $splits->sum('amount');
+            $this->transactionAccountId = $splits->first()?->account_id;
 
-            $primaryTx = $transaction->paymentMethod
-                ? ($splits->firstWhere('account_id', $transaction->paymentMethod->primary_account_id) ?? $splits->first())
-                : $splits->first();
-
-            $secondaryTx = $splits->first(fn ($t) => $t->id !== $primaryTx?->id);
-
-            $this->transactionAccountId = $primaryTx?->account_id;
-            $this->splitPrimaryAmount = (string) ($primaryTx?->amount ?? '0');
-            $this->splitPrimaryAccountAmount = (string) ($primaryTx?->account_amount ?? '');
-
-            if ($secondaryTx) {
-                $this->splitSecondaryAccountId = $secondaryTx->account_id;
-                $this->splitSecondaryAmount = (string) $secondaryTx->amount;
-                $this->splitSecondaryAccountAmount = (string) ($secondaryTx->account_amount ?? '');
-            } else {
-                $this->splitSecondaryAccountId = $transaction->paymentMethod?->secondary_account_id;
-                $this->splitSecondaryAmount = '0';
-                $this->splitSecondaryAccountAmount = '';
-            }
+            $this->splitParts = $splits
+                ->map(fn (Transaction $leg): array => [
+                    'account_id' => $leg->account_id,
+                    'amount' => (string) $leg->amount,
+                    'account_amount' => $leg->account_amount !== null ? (string) $leg->account_amount : '',
+                ])
+                ->values()
+                ->all();
         } else {
             $this->editingSplitGroupId = null;
             $this->paymentSourceMode = 'account';
@@ -617,10 +623,7 @@ new #[Title('Transactions')] class extends Component {
             'transactionCategoryId',
             'transactionAmount',
             'transactionAccountAmount',
-            'splitPrimaryAmount',
-            'splitSecondaryAmount',
-            'splitPrimaryAccountAmount',
-            'splitSecondaryAccountAmount',
+            'splitParts',
             'transferDestinationAccountId',
             'transferDestinationCurrency',
             'transferDestinationAmount',
@@ -635,7 +638,7 @@ new #[Title('Transactions')] class extends Component {
         $destination = $this->accounts->first(fn (Account $candidate): bool => $candidate->id !== $account?->id);
         $this->transferDestinationAccountId = $destination?->id;
         $this->transferDestinationCurrency = $destination?->currency ?? '';
-        $this->splitSecondaryAccountId = $destination?->id;
+        $this->splitParts = $this->defaultSplitParts();
 
         $this->resetValidation();
     }
@@ -684,7 +687,7 @@ new #[Title('Transactions')] class extends Component {
                                 @if ($this->paymentMethods->isNotEmpty())
                                     <flux:select.option value="payment_method">{{ __('Composite Payment Method') }}</flux:select.option>
                                 @endif
-                                <flux:select.option value="split">{{ __('Custom Split across 2 Accounts') }}</flux:select.option>
+                                <flux:select.option value="split">{{ __('Custom Split (multiple accounts)') }}</flux:select.option>
                             </flux:select>
                         </div>
                     @endif
@@ -697,9 +700,9 @@ new #[Title('Transactions')] class extends Component {
                                 @endforeach
                             </flux:select>
                         </div>
-                    @elseif ($transactionType !== 'transfer')
+                    @elseif ($transactionType !== 'transfer' && $paymentSourceMode !== 'split')
                         <div>
-                            <flux:select wire:model.live="transactionAccountId" :label="$paymentSourceMode === 'split' ? __('Primary Account') : __('Account')" placeholder="{{ __('Choose an account') }}">
+                            <flux:select wire:model.live="transactionAccountId" :label="__('Account')" placeholder="{{ __('Choose an account') }}">
                                 @foreach ($this->accounts as $account)
                                     <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
                                 @endforeach
@@ -731,38 +734,61 @@ new #[Title('Transactions')] class extends Component {
                             @endif
                         </div>
 
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <div class="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
-                                <flux:select wire:model.live="transactionAccountId" :label="__('Primary Account')" :disabled="$paymentSourceMode === 'payment_method'">
-                                    @foreach ($this->accounts as $account)
-                                        <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:input wire:model="splitPrimaryAmount" :label="__('Amount from Primary')" type="number" step="0.0001" min="0" />
-
-                                @if ($transactionAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $transactionAccountId)?->currency ?? ''))
-                                    <div class="space-y-1">
-                                        <flux:input wire:model="splitPrimaryAccountAmount" :label="__('Actual amount charged to Primary (:curr)', ['curr' => $this->accounts->firstWhere('id', $transactionAccountId)?->currency])" type="number" step="0.0001" min="0" />
-                                        <flux:text size="xs" class="text-zinc-500">{{ __('No auto-FX: enter the exact statement amount.') }}</flux:text>
-                                    </div>
-                                @endif
-                            </div>
-
-                            <div class="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
-                                <flux:select wire:model.live="splitSecondaryAccountId" :label="__('Secondary / Backup Account')" :disabled="$paymentSourceMode === 'payment_method'">
-                                    @foreach ($this->accounts as $account)
-                                        @if ($account->id !== $transactionAccountId)
-                                            <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                        <div class="space-y-3">
+                            @forelse ($this->splitParts as $index => $part)
+                                @php($partAccount = $this->accounts->firstWhere('id', $part['account_id']))
+                                <div class="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
+                                    <div class="grid items-start gap-3 sm:grid-cols-[1fr_140px_1fr_auto]">
+                                        <flux:select
+                                            wire:model.live="splitParts.{{ $index }}.account_id"
+                                            :label="__('Account')"
+                                            :disabled="$paymentSourceMode === 'payment_method'"
+                                            placeholder="{{ __('Choose account') }}"
+                                        >
+                                            @foreach ($this->accounts as $account)
+                                                <flux:select.option value="{{ $account->id }}">{{ $account->name }} ({{ $account->currency }} · {{ $account->balance() }})</flux:select.option>
+                                            @endforeach
+                                        </flux:select>
+                                        <flux:input
+                                            wire:model="splitParts.{{ $index }}.amount"
+                                            :label="__('Amount')"
+                                            type="number"
+                                            step="0.0001"
+                                            min="0"
+                                            placeholder="0.00"
+                                        />
+                                        <div>
+                                            @if ($partAccount && $transactionCurrency !== $partAccount->currency)
+                                                <flux:input
+                                                    wire:model="splitParts.{{ $index }}.account_amount"
+                                                    :label="__('Actual amount (:curr)', ['curr' => $partAccount->currency])"
+                                                    type="number"
+                                                    step="0.0001"
+                                                    min="0"
+                                                />
+                                                <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('No auto-FX: enter the exact statement amount.') }}</flux:text>
+                                            @else
+                                                <flux:text size="xs" class="pt-7 text-zinc-400">{{ __('Same currency as transaction.') }}</flux:text>
+                                            @endif
+                                        </div>
+                                        @if ($paymentSourceMode === 'split' && count($this->splitParts) > 1)
+                                            <div class="pt-6">
+                                                <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Remove split account') }}" wire:click="removeSplitPart({{ $index }})" />
+                                            </div>
                                         @endif
-                                    @endforeach
-                                </flux:select>
-                                <flux:input wire:model="splitSecondaryAmount" :label="__('Amount from Secondary')" type="number" step="0.0001" min="0" />
-
-                                @if ($splitSecondaryAccountId && $transactionCurrency !== ($this->accounts->firstWhere('id', $splitSecondaryAccountId)?->currency ?? ''))
-                                    <div class="space-y-1">
-                                        <flux:input wire:model="splitSecondaryAccountAmount" :label="__('Actual amount charged to Secondary (:curr)', ['curr' => $this->accounts->firstWhere('id', $splitSecondaryAccountId)?->currency])" type="number" step="0.0001" min="0" />
-                                        <flux:text size="xs" class="text-zinc-500">{{ __('No auto-FX: enter the exact statement amount.') }}</flux:text>
                                     </div>
+                                </div>
+                            @empty
+                                <flux:text size="sm" class="text-zinc-500">{{ __('Add an account to split the transaction.') }}</flux:text>
+                            @endforelse
+
+                            <div class="flex items-center justify-between">
+                                @if ($paymentSourceMode === 'split')
+                                    <flux:button size="sm" variant="ghost" icon="plus" wire:click="addSplitPart">{{ __('Add account') }}</flux:button>
+                                @endif
+
+                                @if ($paymentSourceMode === 'payment_method' && $paymentMethodId)
+                                    <flux:button size="sm" variant="ghost" wire:click="recalculateSplit">{{ __('Recalculate split') }}</flux:button>
                                 @endif
                             </div>
                         </div>

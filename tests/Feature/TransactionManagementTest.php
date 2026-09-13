@@ -193,12 +193,12 @@ test('users can create custom split transactions across multiple accounts', func
         ->test('pages::transactions')
         ->set('transactionType', 'expense')
         ->set('paymentSourceMode', 'split')
-        ->set('transactionAccountId', $accountA->id)
-        ->set('splitSecondaryAccountId', $accountB->id)
         ->set('transactionCurrency', 'EUR')
         ->set('transactionAmount', '50.00')
-        ->set('splitPrimaryAmount', '20.00')
-        ->set('splitSecondaryAmount', '30.00')
+        ->set('splitParts', [
+            ['account_id' => $accountA->id, 'amount' => '20.00', 'account_amount' => ''],
+            ['account_id' => $accountB->id, 'amount' => '30.00', 'account_amount' => ''],
+        ])
         ->set('transactionDescription', 'Dinner split')
         ->set('transactionDate', now()->toDateString())
         ->call('saveTransaction')
@@ -226,15 +226,15 @@ test('split transactions validate that split amounts sum to total amount', funct
         ->test('pages::transactions')
         ->set('transactionType', 'expense')
         ->set('paymentSourceMode', 'split')
-        ->set('transactionAccountId', $accountA->id)
-        ->set('splitSecondaryAccountId', $accountB->id)
         ->set('transactionCurrency', 'EUR')
         ->set('transactionAmount', '50.00')
-        ->set('splitPrimaryAmount', '20.00')
-        ->set('splitSecondaryAmount', '20.00') // sum is 40 != 50
+        ->set('splitParts', [
+            ['account_id' => $accountA->id, 'amount' => '20.00', 'account_amount' => ''],
+            ['account_id' => $accountB->id, 'amount' => '20.00', 'account_amount' => ''], // sum is 40 != 50
+        ])
         ->set('transactionDate', now()->toDateString())
         ->call('saveTransaction')
-        ->assertHasErrors(['splitPrimaryAmount']);
+        ->assertHasErrors(['splitParts.0.amount']);
 });
 
 test('composite payment method automatically splits transaction based on primary account balance', function () {
@@ -299,4 +299,41 @@ test('deleting a split transaction removes all linked split records', function (
     expect(Transaction::query()->where('split_group_id', $splitId)->count())->toBe(0)
         ->and((float) $accountA->fresh()->balance())->toBe(0.0)
         ->and((float) $accountB->fresh()->balance())->toBe(0.0);
+});
+
+test('users can split an expense across more than two accounts', function () {
+    $user = User::factory()->create();
+    $accountA = Account::factory()->for($user)->create(['name' => 'A', 'currency' => 'EUR']);
+    $accountB = Account::factory()->for($user)->create(['name' => 'B', 'currency' => 'EUR']);
+    $accountC = Account::factory()->for($user)->create(['name' => 'C', 'currency' => 'EUR']);
+
+    Livewire::actingAs($user)
+        ->test('pages::transactions')
+        ->set('transactionType', 'expense')
+        ->set('paymentSourceMode', 'split')
+        ->set('transactionCurrency', 'EUR')
+        ->set('transactionAmount', '60.00')
+        ->set('splitParts', [
+            ['account_id' => $accountA->id, 'amount' => '20.00', 'account_amount' => ''],
+            ['account_id' => $accountB->id, 'amount' => '15.00', 'account_amount' => ''],
+            ['account_id' => $accountC->id, 'amount' => '25.00', 'account_amount' => ''],
+        ])
+        ->set('transactionDate', now()->toDateString())
+        ->call('saveTransaction')
+        ->assertHasNoErrors();
+
+    $legs = Transaction::query()->orderBy('id')->get();
+
+    expect($legs)->toHaveCount(3)
+        ->and($legs[0]->account_id)->toBe($accountA->id)
+        ->and($legs[0]->amount)->toBe('20.0000')
+        ->and($legs[1]->account_id)->toBe($accountB->id)
+        ->and($legs[1]->amount)->toBe('15.0000')
+        ->and($legs[2]->account_id)->toBe($accountC->id)
+        ->and($legs[2]->amount)->toBe('25.0000')
+        ->and($legs[0]->split_group_id)->toBe($legs[1]->split_group_id)
+        ->and($legs[1]->split_group_id)->toBe($legs[2]->split_group_id)
+        ->and((float) $accountA->fresh()->balance())->toBe(-20.0)
+        ->and((float) $accountB->fresh()->balance())->toBe(-15.0)
+        ->and((float) $accountC->fresh()->balance())->toBe(-25.0);
 });
