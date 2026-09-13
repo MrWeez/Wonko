@@ -20,7 +20,7 @@ new #[Title('Dashboard')] class extends Component {
     {
         return Account::query()
             ->with('bank')
-            ->orderBy('name')
+            ->defaultOrder()
             ->get();
     }
 
@@ -176,7 +176,12 @@ new #[Title('Dashboard')] class extends Component {
                     @foreach ($this->accounts as $account)
                         <div wire:key="dash-account-{{ $account->id }}" class="flex items-center justify-between p-4">
                             <div class="min-w-0">
-                                <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $account->name }}</div>
+                                <div class="flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
+                                    {{ $account->name }}
+                                    @if ($account->is_primary)
+                                        <flux:badge size="sm" color="zinc">{{ __('Primary') }}</flux:badge>
+                                    @endif
+                                </div>
                                 <div class="text-xs text-zinc-500">
                                     {{ __(ucfirst($account->type->value)) }}
                                     @if ($account->bank)

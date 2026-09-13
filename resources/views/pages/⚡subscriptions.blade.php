@@ -84,7 +84,7 @@ new #[Title('Subscriptions')] class extends Component {
     #[Computed]
     public function accounts(): Collection
     {
-        return Account::query()->orderBy('name')->get();
+        return Account::query()->defaultOrder()->get();
     }
 
     /**

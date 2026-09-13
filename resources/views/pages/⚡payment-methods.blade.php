@@ -39,7 +39,7 @@ new #[Title('Payment Methods')] class extends Component {
     public function accounts(): Collection
     {
         return Account::query()
-            ->orderBy('name')
+            ->defaultOrder()
             ->get();
     }
 

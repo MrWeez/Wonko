@@ -7,11 +7,13 @@ use App\TransactionType;
 use App\TransferDirection;
 use Database\Factories\AccountFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
-#[Fillable(['name', 'currency', 'type', 'bank_id'])]
+#[Fillable(['name', 'currency', 'type', 'bank_id', 'is_primary'])]
 class Account extends UserOwnedModel
 {
     /** @use HasFactory<AccountFactory> */
@@ -24,7 +26,36 @@ class Account extends UserOwnedModel
     {
         return [
             'type' => AccountType::class,
+            'is_primary' => 'boolean',
         ];
+    }
+
+    /**
+     * Mark this account as the user's primary account, demoting any other.
+     */
+    public function markAsPrimary(): void
+    {
+        DB::transaction(function (): void {
+            static::query()
+                ->where('user_id', $this->user_id)
+                ->where('id', '!=', $this->id)
+                ->update(['is_primary' => false]);
+
+            $this->forceFill(['is_primary' => true])->save();
+        });
+    }
+
+    /**
+     * Order: primary account first, then by name.
+     *
+     * @param  Builder<Account>  $query
+     * @return Builder<Account>
+     */
+    public function scopeDefaultOrder(Builder $query): Builder
+    {
+        return $query
+            ->orderByRaw('is_primary DESC')
+            ->orderBy('name');
     }
 
     /**

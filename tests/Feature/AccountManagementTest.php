@@ -74,3 +74,59 @@ test('account currency must be an uppercase ISO-style three letter code', functi
         ->assertHasErrors(['accountCurrency']);
 
 });
+
+test('the first account is automatically marked as primary', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::accounts')
+        ->set('accountName', 'First account')
+        ->set('accountCurrency', 'EUR')
+        ->set('accountType', 'checking')
+        ->call('saveAccount')
+        ->assertHasNoErrors();
+
+    expect(Account::query()->where('name', 'First account')->value('is_primary'))->toBeTrue();
+});
+
+test('marking an account as primary demotes the previous one', function () {
+    $user = User::factory()->create();
+    $first = Account::factory()->for($user)->create(['is_primary' => true]);
+    $second = Account::factory()->for($user)->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::accounts')
+        ->call('makePrimary', $second->id)
+        ->assertHasNoErrors();
+
+    expect($second->fresh()->is_primary)->toBeTrue()
+        ->and($first->fresh()->is_primary)->toBeFalse();
+});
+
+test('the primary account becomes the default in the transaction form', function () {
+    $user = User::factory()->create();
+    Account::factory()->for($user)->create(['name' => 'Alpha', 'currency' => 'EUR']);
+
+    $primary = Account::factory()->for($user)->create(['name' => 'Beta', 'currency' => 'USD']);
+    $primary->markAsPrimary();
+
+    Livewire::actingAs($user)
+        ->test('pages::transactions')
+        ->assertSet('transactionAccountId', $primary->id)
+        ->assertSet('transactionCurrency', 'USD');
+});
+
+test('a new account becomes primary after the previous one is deleted', function () {
+    $user = User::factory()->create();
+    Account::factory()->for($user)->create(['name' => 'Old primary', 'is_primary' => true])->delete();
+
+    Livewire::actingAs($user)
+        ->test('pages::accounts')
+        ->set('accountName', 'New primary')
+        ->set('accountCurrency', 'EUR')
+        ->set('accountType', 'checking')
+        ->call('saveAccount')
+        ->assertHasNoErrors();
+
+    expect(Account::query()->where('name', 'New primary')->value('is_primary'))->toBeTrue();
+});

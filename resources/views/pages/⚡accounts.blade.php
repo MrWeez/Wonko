@@ -46,7 +46,7 @@ new #[Title('Accounts')] class extends Component {
     {
         return Account::query()
             ->with('bank')
-            ->orderBy('name')
+            ->defaultOrder()
             ->get();
     }
 
@@ -124,6 +124,11 @@ new #[Title('Accounts')] class extends Component {
             'type' => $validated['accountType'],
             'bank_id' => $validated['accountBankId'] ?: null,
         ]);
+
+        if ($this->editingAccountId === null && ! Account::query()->where('is_primary', true)->exists()) {
+            $account->is_primary = true;
+        }
+
         $account->save();
 
         $this->resetAccountForm();
@@ -150,6 +155,15 @@ new #[Title('Accounts')] class extends Component {
         unset($this->accounts);
 
         Flux::toast(variant: 'success', text: __('Account deleted.'));
+    }
+
+    public function makePrimary(int $accountId): void
+    {
+        Account::query()->findOrFail($accountId)->markAsPrimary();
+
+        unset($this->accounts);
+
+        Flux::toast(variant: 'success', text: __('Primary account updated.'));
     }
 
     public function resetBankForm(): void
@@ -271,7 +285,12 @@ new #[Title('Accounts')] class extends Component {
                         @forelse ($this->accounts as $account)
                             <tr wire:key="account-{{ $account->id }}">
                                 <td class="py-3 pe-4">
-                                    <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $account->name }}</div>
+                                    <div class="flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
+                                        {{ $account->name }}
+                                        @if ($account->is_primary)
+                                            <flux:badge size="sm" color="zinc">{{ __('Primary') }}</flux:badge>
+                                        @endif
+                                    </div>
                                     <div class="text-xs text-zinc-500">{{ $account->currency }}</div>
                                 </td>
                                 <td class="py-3 pe-4">
@@ -283,6 +302,9 @@ new #[Title('Accounts')] class extends Component {
                                 </td>
                                 <td class="py-3 text-end">
                                     <div class="flex justify-end gap-1">
+                                        @unless ($account->is_primary)
+                                            <flux:button variant="ghost" size="sm" icon="star" aria-label="{{ __('Set as primary') }}" wire:click="makePrimary({{ $account->id }})" />
+                                        @endunless
                                         <flux:button variant="ghost" size="sm" icon="pencil" aria-label="{{ __('Edit account') }}" wire:click="editAccount({{ $account->id }})" />
                                         <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Delete account') }}" wire:click="deleteAccount({{ $account->id }})" />
                                     </div>
