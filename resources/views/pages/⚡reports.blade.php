@@ -256,8 +256,10 @@ new #[Title('Reports')] class extends Component {
                             </div>
                             <div class="flex w-max min-w-full">
                                 @foreach ($trend as $i => $bucket)
-                                    <div class="min-w-[40px] flex-1 px-0.5 py-1 text-center text-[10px] font-medium {{ $bands['cells'][$i]['class'] }}">
-                                        <span class="whitespace-nowrap {{ $bands['cells'][$i]['center'] ? '' : 'invisible' }}">{{ $bands['cells'][$i]['name'] }}</span>
+                                    <div class="relative min-w-[40px] flex-1 py-1 text-[10px] font-medium {{ $bands['cells'][$i]['class'] }}">
+                                        @if ($bands['cells'][$i]['center'])
+                                            <span class="pointer-events-none absolute inset-x-0 whitespace-nowrap text-center">{{ $bands['cells'][$i]['name'] }}</span>
+                                        @endif
                                     </div>
                                 @endforeach
                             </div>
