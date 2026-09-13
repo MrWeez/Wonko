@@ -214,9 +214,9 @@ class ReportData
     }
 
     /**
-     * Per-column month cells for the trend calendar band.
+     * Per-column month cells and per-month segments for the trend band.
      *
-     * @return array{show: bool, cells: list<array{class: string, name: string, center: bool}>}
+     * @return array{show: bool, cells: list<array{class: string, name: string, center: bool}>, months: list<array{start: int, end: int, name: string, class: string}>}
      */
     public function monthBandInfo(): array
     {
@@ -224,6 +224,7 @@ class ReportData
         $colorA = 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200';
         $colorB = 'bg-zinc-300 text-zinc-700 dark:bg-zinc-600 dark:text-zinc-300';
         $cells = [];
+        $months = [];
         $toggle = 0;
         $month = null;
         $class = '';
@@ -241,6 +242,7 @@ class ReportData
 
             if ($current !== $month) {
                 if ($month !== null) {
+                    $months[] = ['start' => $start, 'end' => $end, 'name' => $month, 'class' => $class];
                     $center = intdiv($start + $end, 2);
 
                     for ($j = $start; $j <= $end; $j++) {
@@ -263,6 +265,7 @@ class ReportData
         }
 
         if ($month !== null) {
+            $months[] = ['start' => $start, 'end' => $end, 'name' => $month, 'class' => $class];
             $center = intdiv($start + $end, 2);
 
             for ($j = $start; $j <= $end; $j++) {
@@ -275,6 +278,7 @@ class ReportData
         return [
             'show' => array_any($cells, fn (array $cell): bool => $cell['class'] !== ''),
             'cells' => array_values($cells),
+            'months' => array_values($months),
         ];
     }
 

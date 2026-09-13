@@ -255,11 +255,10 @@ new #[Title('Reports')] class extends Component {
                                 @endforeach
                             </div>
                             <div class="flex w-max min-w-full">
-                                @foreach ($trend as $i => $bucket)
-                                    <div class="relative min-w-[40px] flex-1 py-1 text-[10px] font-medium {{ $bands['cells'][$i]['class'] }}">
-                                        @if ($bands['cells'][$i]['center'])
-                                            <span class="pointer-events-none absolute inset-x-0 whitespace-nowrap text-center">{{ $bands['cells'][$i]['name'] }}</span>
-                                        @endif
+                                @foreach ($bands['months'] as $month)
+                                    @php($span = $month['end'] - $month['start'] + 1)
+                                    <div class="flex items-center justify-center overflow-hidden whitespace-nowrap py-1 text-[10px] font-medium {{ $month['class'] }}" style="flex: {{ $span }} 1 0; min-width: {{ $span * 40 }}px;">
+                                        {{ $month['name'] }}
                                     </div>
                                 @endforeach
                             </div>
