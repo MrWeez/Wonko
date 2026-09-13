@@ -223,7 +223,7 @@ new #[Title('Reports')] class extends Component {
                             @foreach ($trend as $bucket)
                                 @php($incomeTooltip = '+'.number_format((float) $bucket['income'], 2).' '.$this->currency)
                                 @php($expenseTooltip = '−'.number_format((float) $bucket['expense'], 2).' '.$this->currency)
-                                <div class="group relative flex min-w-[40px] flex-1 flex-col items-center gap-1" @mouseenter="setTip($event.currentTarget)" @mouseleave="clear()">
+                                <div class="group relative flex min-w-6 flex-1 flex-col items-center gap-1" @mouseenter="setTip($event.currentTarget)" @mouseleave="clear()">
                                     <div class="trend-tip pointer-events-none absolute bottom-9 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
                                         <div class="font-medium">{{ $bucket['label'] }}</div>
                                         <div class="text-zinc-500 dark:text-zinc-400">{{ __('Income') }}: {{ $incomeTooltip }}</div>
@@ -231,18 +231,18 @@ new #[Title('Reports')] class extends Component {
                                     </div>
                                     <div class="flex h-36 w-full items-end justify-center gap-0.5">
                                         <div
-                                            class="w-3 rounded-t bg-zinc-900 dark:bg-zinc-100"
+                                            class="w-2 rounded-t bg-zinc-900 dark:bg-zinc-100"
                                             title="{{ $incomeTooltip }}"
                                             style="height: {{ round(((float) $bucket['income'] / $this->chartMax) * 100, 1) }}%"
                                         ></div>
                                         <div
-                                            class="w-3 rounded-t bg-zinc-300 dark:bg-zinc-600"
+                                            class="w-2 rounded-t bg-zinc-300 dark:bg-zinc-600"
                                             title="{{ $expenseTooltip }}"
                                             style="height: {{ round(((float) $bucket['expense'] / $this->chartMax) * 100, 1) }}%"
                                         ></div>
                                     </div>
                                     @if ($bucket['day'] === '')
-                                        <div class="max-w-full whitespace-nowrap px-0.5 text-center text-[10px] leading-3 text-zinc-400">{{ $bucket['label'] }}</div>
+                                        <div class="max-w-full whitespace-nowrap text-center text-[10px] leading-3 text-zinc-400">{{ $bucket['label'] }}</div>
                                     @endif
                                 </div>
                             @endforeach
@@ -251,13 +251,13 @@ new #[Title('Reports')] class extends Component {
                         @if ($bands['show'])
                             <div class="mt-2 flex w-max min-w-full">
                                 @foreach ($trend as $i => $bucket)
-                                    <div class="min-w-[40px] flex-1 px-0.5 py-1 text-center text-[10px] {{ $bands['cells'][$i]['class'] }}">{{ $bucket['day'] }}</div>
+                                    <div class="min-w-6 flex-1 pt-1 text-center text-[10px] {{ $bands['cells'][$i]['class'] }}">{{ $bucket['day'] }}</div>
                                 @endforeach
                             </div>
                             <div class="flex w-max min-w-full">
                                 @foreach ($bands['months'] as $month)
                                     @php($span = $month['end'] - $month['start'] + 1)
-                                    <div class="flex items-center justify-center overflow-hidden whitespace-nowrap py-1 text-[10px] font-medium {{ $month['class'] }}" style="flex: {{ $span }} 1 0; min-width: {{ $span * 40 }}px;">
+                                    <div class="flex items-center justify-center overflow-hidden whitespace-nowrap pb-1 text-[10px] font-medium {{ $month['class'] }}" style="flex: {{ $span }} 1 0; min-width: {{ $span * 24 }}px;">
                                         {{ $month['name'] }}
                                     </div>
                                 @endforeach
