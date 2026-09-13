@@ -11,6 +11,8 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use NotificationChannels\WebPush\Events\NotificationFailed;
 use NotificationChannels\WebPush\Events\NotificationSent;
+use SocialiteProviders\Discord\Provider;
+use SocialiteProviders\Manager\SocialiteWasCalled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -29,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureWebPushStatusReporting();
+        $this->configureSsoDrivers();
     }
 
     /**
@@ -77,6 +80,20 @@ class AppServiceProvider extends ServiceProvider
             if ($user instanceof User) {
                 $user->clearNotificationChannelFailure('browser');
             }
+        });
+    }
+
+    /**
+     * Register community Socialite drivers used by config/sso.php.
+     *
+     * Custom OIDC connections are registered by the openidconnect package's
+     * own service provider; only OAuth drivers that are not built into
+     * Socialite core need registering here.
+     */
+    protected function configureSsoDrivers(): void
+    {
+        Event::listen(SocialiteWasCalled::class, function (SocialiteWasCalled $event): void {
+            $event->extendSocialite('discord', Provider::class);
         });
     }
 }

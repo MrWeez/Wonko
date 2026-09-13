@@ -35,4 +35,36 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | SSO / Socialite providers
+    |--------------------------------------------------------------------------
+    |
+    | Credentials for the SSO providers referenced by config/sso.php. Redirect
+    | URLs must match the callback routes: /sso/{provider}/callback.
+    |
+    | Custom OIDC issuers (Keycloak, Authentik, ...) are NOT configured here —
+    | they live in config/oidc.php and are registered as drivers named
+    | "oidc_<connection>".
+    |
+    */
+
+    'github' => [
+        'client_id' => env('SSO_GITHUB_CLIENT_ID'),
+        'client_secret' => env('SSO_GITHUB_CLIENT_SECRET'),
+        'redirect' => '/sso/github/callback',
+    ],
+
+    'google' => [
+        'client_id' => env('SSO_GOOGLE_CLIENT_ID'),
+        'client_secret' => env('SSO_GOOGLE_CLIENT_SECRET'),
+        'redirect' => '/sso/google/callback',
+    ],
+
+    'discord' => [
+        'client_id' => env('SSO_DISCORD_CLIENT_ID'),
+        'client_secret' => env('SSO_DISCORD_CLIENT_SECRET'),
+        'redirect' => '/sso/discord/callback',
+    ],
+
 ];

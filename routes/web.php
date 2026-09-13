@@ -1,9 +1,23 @@
 <?php
 
+use App\Http\Controllers\SsoController;
 use App\Http\Middleware\EnsurePasswordChange;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
+
+Route::prefix('sso')
+    ->name('sso.')
+    ->group(function () {
+        Route::get('{provider}', [SsoController::class, 'redirect'])
+            ->where('provider', '[A-Za-z0-9_-]+')
+            ->name('redirect');
+
+        Route::get('{provider}/callback', [SsoController::class, 'callback'])
+            ->where('provider', '[A-Za-z0-9_-]+')
+            ->middleware('throttle:10,1')
+            ->name('callback');
+    });
 
 Route::middleware(array_filter([
     'auth',
