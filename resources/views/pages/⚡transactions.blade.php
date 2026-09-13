@@ -951,7 +951,7 @@ new #[Title('Transactions')] class extends Component {
                                 </td>
                             </tr>
                             <tr wire:key="split-detail-{{ $first->split_group_id }}" x-show="splitOpen['{{ $first->split_group_id }}']" x-cloak>
-                                <td colspan="6" class="px-5 pb-4 ps-12">
+                                <td colspan="6" class="ps-8">
                                     <table class="w-full text-sm">
                                         <thead class="border-b border-zinc-200 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
                                             <tr>

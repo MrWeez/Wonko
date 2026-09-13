@@ -153,11 +153,11 @@ new #[Title('Reports')] class extends Component {
 
         <div class="grid gap-4 sm:grid-cols-3">
             <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-                <flux:text size="xs" class="text-zinc-500">{{ __('Income') }}</flux:text>
+                <flux:text size="xs" class="text-zinc-500">{{ __('Income') }} <span class="text-zinc-400">· {{ __('incl. transfers') }}</span></flux:text>
                 <flux:heading size="lg" class="mt-1">+{{ number_format((float) $totals['income'], 2) }} {{ $this->currency }}</flux:heading>
             </div>
             <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-                <flux:text size="xs" class="text-zinc-500">{{ __('Expense') }}</flux:text>
+                <flux:text size="xs" class="text-zinc-500">{{ __('Expense') }} <span class="text-zinc-400">· {{ __('incl. transfers') }}</span></flux:text>
                 <flux:heading size="lg" class="mt-1">−{{ number_format((float) $totals['expense'], 2) }} {{ $this->currency }}</flux:heading>
             </div>
             <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
@@ -253,7 +253,7 @@ new #[Title('Reports')] class extends Component {
             {{-- Category breakdown --}}
             <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:heading size="sm">{{ __('Spending by category') }}</flux:heading>
-                <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Share of total expense in :currency.', ['currency' => $this->currency]) }}</flux:text>
+                <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Share of spending in :currency (internal transfers excluded).', ['currency' => $this->currency]) }}</flux:text>
 
                 @if (empty($this->report->byCategory()))
                     <flux:text size="sm" class="mt-4 text-zinc-500">{{ __('No expenses in this period.') }}</flux:text>

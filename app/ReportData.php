@@ -42,8 +42,16 @@ class ReportData
      */
     public function totals(): array
     {
-        $income = $this->sumByType(TransactionType::Income);
-        $expense = $this->sumByType(TransactionType::Expense);
+        $income = '0';
+        $expense = '0';
+
+        foreach ($this->transactions() as $transaction) {
+            if ($this->countsAsIncome($transaction)) {
+                $income = self::add($income, (string) $transaction->amount);
+            } elseif ($this->countsAsExpense($transaction)) {
+                $expense = self::add($expense, (string) $transaction->amount);
+            }
+        }
 
         return [
             'income' => self::padding($income),
@@ -89,9 +97,17 @@ class ReportData
      */
     public function byAccount(): array
     {
-        $income = $this->sumByTypePerAccount(TransactionType::Income);
-        $expense = $this->sumByTypePerAccount(TransactionType::Expense);
+        $income = [];
+        $expense = [];
         $rows = [];
+
+        foreach ($this->transactions() as $transaction) {
+            if ($this->countsAsIncome($transaction)) {
+                $income[$transaction->account_id] = self::add($income[$transaction->account_id] ?? '0', (string) $transaction->amount);
+            } elseif ($this->countsAsExpense($transaction)) {
+                $expense[$transaction->account_id] = self::add($expense[$transaction->account_id] ?? '0', (string) $transaction->amount);
+            }
+        }
 
         foreach (array_unique([...array_keys($income), ...array_keys($expense)]) as $accountId) {
             $account = $this->accountsById()[$accountId] ?? null;
@@ -174,7 +190,14 @@ class ReportData
                 continue;
             }
 
-            $column = $transaction->type === TransactionType::Income ? 'income' : 'expense';
+            if ($this->countsAsIncome($transaction)) {
+                $column = 'income';
+            } elseif ($this->countsAsExpense($transaction)) {
+                $column = 'expense';
+            } else {
+                continue;
+            }
+
             $buckets[$key][$column] = self::add($buckets[$key][$column], (string) $transaction->amount);
         }
 
@@ -268,6 +291,22 @@ class ReportData
     }
 
     /**
+     * Transfers count as money flow: the destination leg increases the
+     * balance like income, the source leg decreases it like an expense.
+     */
+    private function countsAsIncome(Transaction $transaction): bool
+    {
+        return $transaction->type === TransactionType::Income
+            || ($transaction->type === TransactionType::Transfer && $transaction->transfer_direction === TransferDirection::Destination);
+    }
+
+    private function countsAsExpense(Transaction $transaction): bool
+    {
+        return $transaction->type === TransactionType::Expense
+            || ($transaction->type === TransactionType::Transfer && $transaction->transfer_direction === TransferDirection::Source);
+    }
+
+    /**
      * @return numeric-string
      */
     private function sumByType(TransactionType $type): string
@@ -284,22 +323,6 @@ class ReportData
     }
 
     /**
-     * @return array<int, numeric-string>
-     */
-    private function sumByTypePerAccount(TransactionType $type): array
-    {
-        $totals = [];
-
-        foreach ($this->transactions() as $transaction) {
-            if ($transaction->type === $type) {
-                $totals[$transaction->account_id] = self::add($totals[$transaction->account_id] ?? '0', (string) $transaction->amount);
-            }
-        }
-
-        return $totals;
-    }
-
-    /**
      * @return Collection<int, Transaction>
      */
     private function transactions(): Collection
@@ -311,7 +334,7 @@ class ReportData
             ->whereDate('transaction_date', '>=', $this->from->toDateString())
             ->whereDate('transaction_date', '<=', $this->to->toDateString())
             ->with(['category' => fn ($query) => $query->withoutGlobalScope('owned-by-user')])
-            ->get(['id', 'type', 'amount', 'transaction_date', 'category_id', 'account_id']);
+            ->get(['id', 'type', 'transfer_direction', 'amount', 'transaction_date', 'category_id', 'account_id']);
     }
 
     /**

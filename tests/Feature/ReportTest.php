@@ -182,3 +182,34 @@ test('the reports page renders the trend tooltips when there is data', function 
         ->assertSee('Income:')
         ->assertSee('12.00');
 });
+
+test('transfers count as money flow in totals and per account', function () {
+    $user = User::factory()->create();
+    $from = Account::factory()->for($user)->create(['currency' => 'EUR', 'name' => 'Checking']);
+    $to = Account::factory()->for($user)->create(['currency' => 'EUR', 'name' => 'Savings']);
+
+    $source = Transaction::factory()->transferSource()->forAccount($from)->create([
+        'amount' => '30.00',
+        'transaction_date' => now(),
+    ]);
+    Transaction::factory()->transferDestination()->forAccount($to)->create([
+        'amount' => '30.00',
+        'related_transaction_id' => $source->id,
+        'transaction_date' => now(),
+    ]);
+    Transaction::factory()->income()->forAccount($from)->create(['amount' => '100.00', 'transaction_date' => now()]);
+    Transaction::factory()->expense()->forAccount($from)->create(['amount' => '20.00', 'transaction_date' => now()]);
+
+    $data = new ReportData($user, now()->subDays(30), now(), 'EUR');
+
+    expect($data->totals())->toEqual([
+        'income' => '130.0000',
+        'expense' => '50.0000',
+        'net' => '80.0000',
+    ]);
+
+    $byAccount = array_column($data->byAccount(), null, 'name');
+
+    expect($byAccount['Checking']['income'])->toBe('100.0000')->and($byAccount['Checking']['expense'])->toBe('50.0000')
+        ->and($byAccount['Savings']['income'])->toBe('30.0000');
+});
