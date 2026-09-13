@@ -44,6 +44,13 @@ new #[Title('Notification settings')] class extends Component {
 
     public int $notificationOverdueFrequency = 3;
 
+    /**
+     * Snapshot of the persisted values, used to flag unsaved changes.
+     *
+     * @var array<string, mixed>
+     */
+    public array $saved = [];
+
     public function mount(): void
     {
         $preferences = Auth::user()->notificationPreferences();
@@ -63,6 +70,67 @@ new #[Title('Notification settings')] class extends Component {
         $this->webhookUrl = $configurations['webhook']['url'] ?? '';
         $this->telegramChatId = (string) ($configurations['telegram']['chat_id'] ?? '');
         $this->telegramMessageThreadId = (string) ($configurations['telegram']['message_thread_id'] ?? '');
+
+        $this->saved = $this->snapshot();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function snapshot(): array
+    {
+        return [
+            'database' => $this->database,
+            'email' => $this->email,
+            'webhook' => $this->webhook,
+            'discord' => $this->discord,
+            'telegram' => $this->telegram,
+            'browser' => $this->browser,
+            'webhookUrl' => $this->webhookUrl,
+            'webhookSecret' => $this->webhookSecret,
+            'discordUrl' => $this->discordUrl,
+            'telegramBotToken' => $this->telegramBotToken,
+            'telegramChatId' => $this->telegramChatId,
+            'telegramMessageThreadId' => $this->telegramMessageThreadId,
+            'notificationReminders' => $this->notificationReminders,
+            'notificationOverdue' => $this->notificationOverdue,
+            'notificationOverdueFrequency' => $this->notificationOverdueFrequency,
+        ];
+    }
+
+    public function hasUnsavedChanges(): bool
+    {
+        foreach ($this->snapshot() as $key => $value) {
+            if (($this->saved[$key] ?? null) !== $value) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function scheduleChanged(): bool
+    {
+        return $this->notificationReminders != $this->saved['notificationReminders']
+            || $this->notificationOverdue !== $this->saved['notificationOverdue']
+            || $this->notificationOverdueFrequency !== $this->saved['notificationOverdueFrequency'];
+    }
+
+    public function channelChanged(string $channel): bool
+    {
+        if ($this->{$channel} !== $this->saved[$channel]) {
+            return true;
+        }
+
+        return match ($channel) {
+            'webhook' => $this->webhookUrl !== $this->saved['webhookUrl']
+                || $this->webhookSecret !== $this->saved['webhookSecret'],
+            'discord' => $this->discordUrl !== $this->saved['discordUrl'],
+            'telegram' => $this->telegramBotToken !== $this->saved['telegramBotToken']
+                || $this->telegramChatId !== $this->saved['telegramChatId']
+                || $this->telegramMessageThreadId !== $this->saved['telegramMessageThreadId'],
+            default => false,
+        };
     }
 
     public function addReminder(): void
@@ -204,8 +272,14 @@ new #[Title('Notification settings')] class extends Component {
                 </flux:callout>
             @endforeach
 
+            @if ($this->hasUnsavedChanges())
+                <flux:callout variant="warning" :heading="__('Unsaved changes')">
+                    {{ __('Some settings above have changed but are not saved yet. Click "Save notification settings" to apply them.') }}
+                </flux:callout>
+            @endif
+
             {{-- 1. Reminders & overdue --}}
-            <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->scheduleChanged() ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}">
                 <div class="flex items-center gap-3 border-b border-zinc-100 pb-4 dark:border-zinc-800">
                     <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
                         <flux:icon icon="clock" class="size-4 text-zinc-600 dark:text-zinc-400" />
@@ -256,7 +330,7 @@ new #[Title('Notification settings')] class extends Component {
             {{-- 2. Simple channels: In-App & Email side by side --}}
             <div class="grid gap-4 sm:grid-cols-2">
                 {{-- In-App --}}
-                <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('database') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}">
                     <div class="flex items-start justify-between">
                         <div class="flex items-start gap-3">
                             <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
@@ -272,7 +346,7 @@ new #[Title('Notification settings')] class extends Component {
                 </div>
 
                 {{-- Email --}}
-                <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('email') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}">
                     <div class="flex items-start justify-between">
                         <div class="flex items-start gap-3">
                             <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
@@ -290,7 +364,7 @@ new #[Title('Notification settings')] class extends Component {
 
             {{-- 3. Browser push --}}
             <div
-                class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"
+                class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('browser') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}"
                 x-data="pushBrowserDevices({
                     vapidKey: @js(config('webpush.vapid.public_key')),
                     endpoints: @js($this->pushDevices->pluck('endpoint')->values()),
@@ -374,7 +448,7 @@ new #[Title('Notification settings')] class extends Component {
             </div>
 
             {{-- 4. Telegram --}}
-            <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('telegram') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}">
                 <div class="flex items-start justify-between">
                     <div class="flex items-start gap-3">
                         <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
@@ -417,7 +491,7 @@ new #[Title('Notification settings')] class extends Component {
             </div>
 
             {{-- 4. Discord --}}
-            <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('discord') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}">
                 <div class="flex items-start justify-between">
                     <div class="flex items-start gap-3">
                         <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
@@ -448,7 +522,7 @@ new #[Title('Notification settings')] class extends Component {
             </div>
 
             {{-- 5. Generic JSON Webhook --}}
-            <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('webhook') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}">
                 <div class="flex items-start justify-between">
                     <div class="flex items-start gap-3">
                         <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
