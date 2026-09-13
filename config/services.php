@@ -7,10 +7,8 @@ return [
     | Third Party Services
     |--------------------------------------------------------------------------
     |
-    | This file is for storing the credentials for third party services such
-    | as Resend, Postmark, AWS, and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
+    | Service credentials. SSO providers are referenced by config/sso.php;
+    | redirect URLs must match the /sso/{provider}/callback routes.
     |
     */
 
@@ -35,35 +33,22 @@ return [
         ],
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | SSO / Socialite providers
-    |--------------------------------------------------------------------------
-    |
-    | Credentials for the SSO providers referenced by config/sso.php. Redirect
-    | URLs must match the callback routes: /sso/{provider}/callback.
-    |
-    | Custom OIDC issuers (Keycloak, Authentik, ...) are NOT configured here —
-    | they live in config/oidc.php and are registered as drivers named
-    | "oidc_<connection>".
-    |
-    */
-
+    // Built-in Socialite SSO providers. Custom OIDC issuers live in config/oidc.php.
     'github' => [
-        'client_id' => env('SSO_GITHUB_CLIENT_ID'),
-        'client_secret' => env('SSO_GITHUB_CLIENT_SECRET'),
+        'client_id' => env('SSO_GITHUB_ID'),
+        'client_secret' => env('SSO_GITHUB_SECRET'),
         'redirect' => '/sso/github/callback',
     ],
 
     'google' => [
-        'client_id' => env('SSO_GOOGLE_CLIENT_ID'),
-        'client_secret' => env('SSO_GOOGLE_CLIENT_SECRET'),
+        'client_id' => env('SSO_GOOGLE_ID'),
+        'client_secret' => env('SSO_GOOGLE_SECRET'),
         'redirect' => '/sso/google/callback',
     ],
 
     'discord' => [
-        'client_id' => env('SSO_DISCORD_CLIENT_ID'),
-        'client_secret' => env('SSO_DISCORD_CLIENT_SECRET'),
+        'client_id' => env('SSO_DISCORD_ID'),
+        'client_secret' => env('SSO_DISCORD_SECRET'),
         'redirect' => '/sso/discord/callback',
     ],
 

@@ -57,12 +57,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Surface web push delivery problems on the user's notification settings.
-     *
-     * The WebPushChannel reports per-subscription delivery results as
-     * NotificationFailed / NotificationSent events. Mirror those into the
-     * user's channel status so a broken push endpoint shows the same "channel
-     * is failing" indicator the other channels have.
+     * Mirror WebPush delivery results into the user's browser channel status.
      */
     protected function configureWebPushStatusReporting(): void
     {
@@ -84,11 +79,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register community Socialite drivers used by config/sso.php.
-     *
-     * Custom OIDC connections are registered by the openidconnect package's
-     * own service provider; only OAuth drivers that are not built into
-     * Socialite core need registering here.
+     * Register community Socialite drivers (OIDC comes via its own provider).
      */
     protected function configureSsoDrivers(): void
     {

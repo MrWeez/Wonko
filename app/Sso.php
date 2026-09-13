@@ -5,14 +5,9 @@ namespace App;
 use Illuminate\Support\Collection;
 
 /**
- * Resolves which SSO providers are active for the current installation.
- *
- * A provider is considered "active" only when SSO is enabled, the provider is
- * listed in config/sso.php, and its credentials are present in config
- * (config/services.php for built-in drivers, config/oidc.php for custom
- * OIDC connections). Because activation depends on credentials, emptying the
- * relevant .env values removes a button from the login page without code
- * changes, so the rendered list stays short.
+ * Resolves which SSO providers are active: SSO enabled + provider listed in
+ * config/sso.php + credentials configured, so the login page only shows the
+ * providers an installation actually set up.
  */
 class Sso
 {

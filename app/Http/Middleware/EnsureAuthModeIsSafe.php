@@ -10,14 +10,8 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureAuthModeIsSafe
 {
     /**
-     * Handle an incoming request.
-     *
-     * While registration is disabled, the instance must already contain at
-     * least one user. Without a user, nobody could ever create the first
-     * account, which would permanently lock the application out. The one
-     * exception is a deployment with SSO enabled: there the first account can
-     * legitimately arrive through the identity provider. When neither path
-     * exists, refuse to run and point the operator at `user:create`.
+     * With registration closed, refuse to run until a first user exists,
+     * unless SSO is enabled (the IdP can still create the first account).
      *
      * @param  Closure(Request): (Response)  $next
      */
