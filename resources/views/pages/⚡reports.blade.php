@@ -249,15 +249,16 @@ new #[Title('Reports')] class extends Component {
                         </div>
 
                         @if ($bands['show'])
-                            <div
-                                class="mt-2 grid w-max min-w-full overflow-hidden rounded"
-                                style="grid-template-columns: repeat({{ count($trend) }}, minmax(40px, 1fr));"
-                            >
+                            <div class="mt-2 flex w-max min-w-full">
                                 @foreach ($trend as $i => $bucket)
-                                    <div class="px-0.5 py-1 text-center text-[10px] {{ $bands['cells'][$i]['class'] }}">{{ $bucket['day'] }}</div>
+                                    <div class="min-w-[40px] flex-1 px-0.5 py-1 text-center text-[10px] {{ $bands['cells'][$i]['class'] }}">{{ $bucket['day'] }}</div>
                                 @endforeach
+                            </div>
+                            <div class="flex w-max min-w-full">
                                 @foreach ($trend as $i => $bucket)
-                                    <div class="px-0.5 py-1 text-center text-[10px] font-medium {{ $bands['cells'][$i]['class'] }} {{ $bands['cells'][$i]['center'] ? '' : 'invisible' }}">{{ $bands['cells'][$i]['name'] }}</div>
+                                    <div class="min-w-[40px] flex-1 px-0.5 py-1 text-center text-[10px] font-medium {{ $bands['cells'][$i]['class'] }}">
+                                        <span class="whitespace-nowrap {{ $bands['cells'][$i]['center'] ? '' : 'invisible' }}">{{ $bands['cells'][$i]['name'] }}</span>
+                                    </div>
                                 @endforeach
                             </div>
                         @endif
