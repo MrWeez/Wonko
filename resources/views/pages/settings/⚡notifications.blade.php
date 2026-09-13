@@ -218,14 +218,13 @@ new #[Title('Notification settings')] class extends Component {
 
                 <div class="mt-4 space-y-2">
                     @forelse ($this->notificationReminders as $index => $days)
-                        <div class="flex items-end gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+                        <div class="grid items-end gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 sm:grid-cols-[minmax(0,1fr)_auto] dark:border-zinc-700 dark:bg-zinc-800/50">
                             <flux:input
                                 wire:model="notificationReminders.{{ $index }}"
                                 :label="__('Notify days before due')"
                                 type="number"
                                 min="1"
                                 max="365"
-                                class="max-w-xs"
                             />
                             <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Remove reminder') }}" wire:click="removeReminder({{ $index }})" />
                         </div>
@@ -242,11 +241,11 @@ new #[Title('Notification settings')] class extends Component {
                             <flux:heading size="sm">{{ __('Notify about overdue payments') }}</flux:heading>
                             <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Keep nudging for a subscription that is past due and not yet confirmed.') }}</flux:text>
                         </div>
-                        <flux:switch wire:model="notificationOverdue" />
+                        <flux:switch wire:model.live="notificationOverdue" />
                     </div>
 
                     @if ($this->notificationOverdue)
-                        <div class="mt-4 max-w-xs">
+                        <div class="mt-4 max-w-md">
                             <flux:input wire:model="notificationOverdueFrequency" :label="__('Remind again every (:unit)', ['unit' => __('days')])" type="number" min="1" max="365" />
                             <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('While the payment stays overdue, a reminder goes out every N days.') }}</flux:text>
                         </div>
@@ -268,7 +267,7 @@ new #[Title('Notification settings')] class extends Component {
                                 <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Badges and notifications inside the web interface.') }}</flux:text>
                             </div>
                         </div>
-                        <flux:switch wire:model="database" />
+                        <flux:switch wire:model.live="database" />
                     </div>
                 </div>
 
@@ -284,7 +283,7 @@ new #[Title('Notification settings')] class extends Component {
                                 <flux:text size="xs" class="mt-1 text-zinc-500">{{ Auth::user()->email }}</flux:text>
                             </div>
                         </div>
-                        <flux:switch wire:model="email" />
+                        <flux:switch wire:model.live="email" />
                     </div>
                 </div>
             </div>
@@ -314,7 +313,7 @@ new #[Title('Notification settings')] class extends Component {
                             <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Real-time notifications on your phone or computer, even when the site is closed. Requires HTTPS.') }}</flux:text>
                         </div>
                     </div>
-                    <flux:switch wire:model="browser" />
+                    <flux:switch wire:model.live="browser" />
                 </div>
 
                 @if ($browser)
@@ -393,7 +392,7 @@ new #[Title('Notification settings')] class extends Component {
                             <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Send messages to a private chat, group, or forum topic.') }}</flux:text>
                         </div>
                     </div>
-                    <flux:switch wire:model="telegram" />
+                    <flux:switch wire:model.live="telegram" />
                 </div>
 
                 @if ($telegram)
@@ -436,7 +435,7 @@ new #[Title('Notification settings')] class extends Component {
                             <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Post rich embeds to a channel on your Discord server.') }}</flux:text>
                         </div>
                     </div>
-                    <flux:switch wire:model="discord" />
+                    <flux:switch wire:model.live="discord" />
                 </div>
 
                 @if ($discord)
@@ -467,7 +466,7 @@ new #[Title('Notification settings')] class extends Component {
                             <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('HTTP POST payload for custom automations — n8n, Home Assistant, etc.') }}</flux:text>
                         </div>
                     </div>
-                    <flux:switch wire:model="webhook" />
+                    <flux:switch wire:model.live="webhook" />
                 </div>
 
                 @if ($webhook)

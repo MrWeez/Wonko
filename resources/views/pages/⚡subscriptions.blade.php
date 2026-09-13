@@ -507,21 +507,20 @@ new #[Title('Subscriptions')] class extends Component {
                         <flux:heading size="sm">{{ __('Custom notification schedule') }}</flux:heading>
                         <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Override the reminder schedule from your settings for this subscription.') }}</flux:text>
                     </div>
-                    <flux:switch wire:model="subscriptionOverrideNotifications" />
+                    <flux:switch wire:model.live="subscriptionOverrideNotifications" />
                 </div>
 
                 @if ($this->subscriptionOverrideNotifications)
                     <div class="mt-4 space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-700">
                         <flux:text size="xs" class="mb-2 font-medium uppercase tracking-wide text-zinc-500">{{ __('Reminders') }}</flux:text>
                         @forelse ($this->subscriptionReminders as $index => $days)
-                            <div class="flex items-end gap-3">
+                            <div class="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                                 <flux:input
                                     wire:model="subscriptionReminders.{{ $index }}"
                                     :label="__('Notify days before due')"
                                     type="number"
                                     min="1"
                                     max="365"
-                                    class="max-w-xs"
                                 />
                                 <flux:button variant="ghost" size="sm" icon="trash" aria-label="{{ __('Remove reminder') }}" wire:click="removeSubscriptionReminder({{ $index }})" />
                             </div>
@@ -535,11 +534,11 @@ new #[Title('Subscriptions')] class extends Component {
                                 <flux:heading size="sm">{{ __('Notify about overdue payments') }}</flux:heading>
                                 <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Also applies to manual confirmation.') }}</flux:text>
                             </div>
-                            <flux:switch wire:model="subscriptionOverdue" />
+                            <flux:switch wire:model.live="subscriptionOverdue" />
                         </div>
 
                         @if ($this->subscriptionOverdue)
-                            <div class="max-w-xs">
+                            <div class="max-w-md">
                                 <flux:input wire:model="subscriptionOverdueFrequency" :label="__('Remind again every (:unit)', ['unit' => __('days')])" type="number" min="1" max="365" />
                             </div>
                         @endif
