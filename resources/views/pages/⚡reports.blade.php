@@ -176,6 +176,8 @@ new #[Title('Reports')] class extends Component {
             @if (empty($this->report->timeSeries()))
                 <flux:text size="sm" class="mt-4 text-zinc-500">{{ __('No transactions in this period.') }}</flux:text>
             @else
+                @php($trend = $this->report->timeSeries())
+                @php($bands = $this->report->monthBandInfo())
                 <div
                     x-data="{
                         tip: null,
@@ -184,7 +186,7 @@ new #[Title('Reports')] class extends Component {
                         setTip: function (column) {
                             this.tip = column.querySelector('.trend-tip');
                             this.anchor = column;
-                            this.box = column.parentElement;
+                            this.box = column.closest('.trend-scroll');
                             requestAnimationFrame(() => this.align());
                         },
                         align: function () {
@@ -214,37 +216,51 @@ new #[Title('Reports')] class extends Component {
                             this.box = null;
                         },
                     }"
-                    class="mt-6 flex h-44 w-full items-end gap-1 overflow-x-auto pb-0.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600"
-                    @scroll.passive="align()"
+                    class="relative mt-6"
                 >
-                    @foreach ($this->report->timeSeries() as $bucket)
-                        @php($incomeTooltip = '+'.number_format((float) $bucket['income'], 2).' '.$this->currency)
-                        @php($expenseTooltip = '−'.number_format((float) $bucket['expense'], 2).' '.$this->currency)
-                        <div class="group relative flex min-w-[40px] flex-1 flex-col items-center gap-1" @mouseenter="setTip($event.currentTarget)" @mouseleave="clear()">
-                            <div class="trend-tip pointer-events-none absolute bottom-9 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
-                                <div class="font-medium">{{ $bucket['label'] }}</div>
-                                <div class="text-zinc-500 dark:text-zinc-400">{{ __('Income') }}: {{ $incomeTooltip }}</div>
-                                <div class="text-zinc-500 dark:text-zinc-400">{{ __('Expense') }}: {{ $expenseTooltip }}</div>
-                            </div>
-                            <div class="flex h-36 w-full items-end justify-center gap-0.5">
-                                <div
-                                    class="w-3 rounded-t bg-zinc-900 dark:bg-zinc-100"
-                                    title="{{ $incomeTooltip }}"
-                                    style="height: {{ round(((float) $bucket['income'] / $this->chartMax) * 100, 1) }}%"
-                                ></div>
-                                <div
-                                    class="w-3 rounded-t bg-zinc-300 dark:bg-zinc-600"
-                                    title="{{ $expenseTooltip }}"
-                                    style="height: {{ round(((float) $bucket['expense'] / $this->chartMax) * 100, 1) }}%"
-                                ></div>
-                            </div>
-                            <div class="max-w-full overflow-x-auto whitespace-nowrap px-0.5 text-[10px] leading-3 text-zinc-400 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600">{{ $bucket['label'] }}</div>
+                    <div class="trend-scroll overflow-x-auto pb-0.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600" @scroll.passive="align()">
+                        <div class="flex h-44 w-max min-w-full items-end gap-1">
+                            @foreach ($trend as $bucket)
+                                @php($incomeTooltip = '+'.number_format((float) $bucket['income'], 2).' '.$this->currency)
+                                @php($expenseTooltip = '−'.number_format((float) $bucket['expense'], 2).' '.$this->currency)
+                                <div class="group relative flex min-w-[40px] flex-1 flex-col items-center gap-1" @mouseenter="setTip($event.currentTarget)" @mouseleave="clear()">
+                                    <div class="trend-tip pointer-events-none absolute bottom-9 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
+                                        <div class="font-medium">{{ $bucket['label'] }}</div>
+                                        <div class="text-zinc-500 dark:text-zinc-400">{{ __('Income') }}: {{ $incomeTooltip }}</div>
+                                        <div class="text-zinc-500 dark:text-zinc-400">{{ __('Expense') }}: {{ $expenseTooltip }}</div>
+                                    </div>
+                                    <div class="flex h-36 w-full items-end justify-center gap-0.5">
+                                        <div
+                                            class="w-3 rounded-t bg-zinc-900 dark:bg-zinc-100"
+                                            title="{{ $incomeTooltip }}"
+                                            style="height: {{ round(((float) $bucket['income'] / $this->chartMax) * 100, 1) }}%"
+                                        ></div>
+                                        <div
+                                            class="w-3 rounded-t bg-zinc-300 dark:bg-zinc-600"
+                                            title="{{ $expenseTooltip }}"
+                                            style="height: {{ round(((float) $bucket['expense'] / $this->chartMax) * 100, 1) }}%"
+                                        ></div>
+                                    </div>
+                                    <div class="max-w-full overflow-x-auto whitespace-nowrap px-0.5 text-[10px] leading-3 text-zinc-400 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600">{{ $bucket['day'] !== '' ? $bucket['day'] : $bucket['label'] }}</div>
+                                </div>
+                            @endforeach
                         </div>
-                    @endforeach
-                </div>
-                <div class="mt-3 flex items-center gap-4 text-xs text-zinc-500">
-                    <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-sm bg-zinc-900 dark:bg-zinc-100"></span>{{ __('Income') }}</span>
-                    <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-sm bg-zinc-300 dark:bg-zinc-600"></span>{{ __('Expense') }}</span>
+
+                        @if ($bands['show'])
+                            <div class="mt-2 flex h-6 w-max min-w-full items-center gap-1">
+                                @foreach ($bands['colors'] as $i => $bandClass)
+                                    <div class="flex h-full min-w-[40px] flex-1 items-center justify-center truncate px-0.5 text-[10px] font-medium {{ $bandClass }}">
+                                        {{ $bands['labels'][$i] }}
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="mt-3 flex items-center gap-4 text-xs text-zinc-500">
+                        <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-sm bg-zinc-900 dark:bg-zinc-100"></span>{{ __('Income') }}</span>
+                        <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-sm bg-zinc-300 dark:bg-zinc-600"></span>{{ __('Expense') }}</span>
+                    </div>
                 </div>
             @endif
         </div>

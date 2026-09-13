@@ -152,7 +152,7 @@ class ReportData
     }
 
     /**
-     * @return list<array{label: string, income: string, expense: string, net: string}>
+     * @return list<array{label: string, month: string, day: string, income: string, expense: string, net: string}>
      */
     public function timeSeries(): array
     {
@@ -173,6 +173,8 @@ class ReportData
         for ($cursor = $this->from; $cursor->lte($this->to);) {
             $buckets[$keyFor($cursor)] = [
                 'label' => $labelFor($cursor),
+                'month' => $unit === 'month' ? '' : $cursor->format('F'),
+                'day' => $unit === 'month' ? '' : $cursor->format('j'),
                 'income' => '0',
                 'expense' => '0',
             ];
@@ -203,10 +205,76 @@ class ReportData
 
         return array_values(array_map(fn (array $bucket): array => [
             'label' => $bucket['label'],
+            'month' => $bucket['month'],
+            'day' => $bucket['day'],
             'income' => (string) $bucket['income'],
             'expense' => (string) $bucket['expense'],
             'net' => (string) self::sub($bucket['income'], $bucket['expense']),
         ], $buckets));
+    }
+
+    /**
+     * Alternating color band and centered labels for the trend chart.
+     *
+     * @return array{show: bool, colors: array<int, string>, labels: array<int, string>}
+     */
+    public function monthBandInfo(): array
+    {
+        $series = $this->timeSeries();
+        $count = count($series);
+        $colors = array_fill(0, $count, '');
+        $labels = array_fill(0, $count, '');
+        $colorA = 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200';
+        $colorB = 'bg-zinc-300 text-zinc-700 dark:bg-zinc-600 dark:text-zinc-300';
+        $toggle = 0;
+        $month = null;
+        $color = '';
+        $start = 0;
+        $end = 0;
+
+        foreach ($series as $i => $bucket) {
+            $current = $bucket['month'];
+
+            if ($current === '') {
+                continue;
+            }
+
+            if ($current !== $month) {
+                if ($month !== null) {
+                    $mid = intdiv($start + $end, 2);
+
+                    for ($j = $start; $j <= $end; $j++) {
+                        $colors[$j] = $color;
+                    }
+
+                    $labels[$mid] = $month;
+                }
+
+                $toggle++;
+                $month = $current;
+                $color = $toggle % 2 === 1 ? $colorA : $colorB;
+                $start = $i;
+                $end = $i;
+            } else {
+                $end = $i;
+            }
+        }
+
+        if ($month !== null) {
+            $mid = intdiv($start + $end, 2);
+
+            for ($j = $start; $j <= $end; $j++) {
+                $colors[$j] = $color;
+            }
+
+            $labels[$mid] = $month;
+        }
+
+        return [
+            'show' => $month !== null,
+            'colors' => $colors,
+            'labels' => $labels,
+        ];
     }
 
     /**
