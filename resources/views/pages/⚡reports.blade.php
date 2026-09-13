@@ -134,11 +134,11 @@ new #[Title('Reports')] class extends Component {
 
                 <div class="flex flex-wrap items-end gap-4">
                     @if ($this->period === 'custom')
-                        <flux:input wire:model="customFrom" type="date" :label="__('From')" />
-                        <flux:input wire:model="customTo" type="date" :label="__('To')" />
+                        <flux:input wire:model.live="customFrom" type="date" :label="__('From')" />
+                        <flux:input wire:model.live="customTo" type="date" :label="__('To')" />
                     @endif
 
-                    <flux:select wire:model="currency" :label="__('Currency')" class="w-40">
+                    <flux:select wire:model.live="currency" :label="__('Currency')" class="w-40">
                         @foreach ($this->currencies as $currency)
                             <flux:select.option :value="$currency">{{ $currency }}</flux:select.option>
                         @endforeach
@@ -198,7 +198,7 @@ new #[Title('Reports')] class extends Component {
                                     style="height: {{ round(((float) $bucket['expense'] / $this->chartMax) * 100, 1) }}%"
                                 ></div>
                             </div>
-                            <span class="text-[10px] text-zinc-400">{{ $bucket['label'] }}</span>
+                            <span class="max-w-full truncate px-0.5 text-[10px] text-zinc-400">{{ $bucket['label'] }}</span>
                         </div>
                     @endforeach
                 </div>
