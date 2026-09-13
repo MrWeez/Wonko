@@ -164,3 +164,31 @@ test('due auto-post subscriptions with composite payment method generate split t
         ->and((float) $primary->fresh()->balance())->toBe(0.0)
         ->and((float) $backup->fresh()->balance())->toBe(-15.0);
 });
+
+test('deleting a subscription payment transaction also removes its occurrence', function () {
+    $user = User::factory()->create();
+    $account = Account::factory()->for($user)->create(['currency' => 'EUR']);
+    $subscription = Subscription::factory()->forAccount($account)->create([
+        'name' => 'Spotify',
+        'amount' => '9.99',
+        'currency' => 'EUR',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::dashboard')
+        ->call('quickConfirmSubscription', $subscription->id)
+        ->assertHasNoErrors();
+
+    $occurrence = SubscriptionOccurrence::query()->withoutGlobalScopes()->firstOrFail();
+    $transactionId = $occurrence->transaction_id;
+
+    expect($occurrence->transaction_id)->not->toBeNull();
+
+    Livewire::actingAs($user)
+        ->test('pages::transactions')
+        ->call('deleteTransaction', $transactionId)
+        ->assertHasNoErrors();
+
+    expect(Transaction::withoutGlobalScopes()->find($transactionId))->toBeNull()
+        ->and(SubscriptionOccurrence::withoutGlobalScopes()->find($occurrence->id))->toBeNull();
+});

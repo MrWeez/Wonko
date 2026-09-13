@@ -3,6 +3,7 @@
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\PaymentMethod;
+use App\Models\SubscriptionOccurrence;
 use App\Models\Transaction;
 use App\PaymentMethodType;
 use App\TransactionType;
@@ -583,14 +584,20 @@ new #[Title('Transactions')] class extends Component {
         $transaction = Transaction::query()->findOrFail($transactionId);
 
         DB::transaction(function () use ($transaction): void {
-            if ($transaction->split_group_id) {
-                Transaction::query()->where('split_group_id', $transaction->split_group_id)->delete();
-            } elseif ($transaction->type === TransactionType::Transfer) {
-                $transaction->relatedTransaction?->delete();
-                $transaction->delete();
-            } else {
-                $transaction->delete();
-            }
+            $ids = $transaction->split_group_id
+                ? Transaction::query()
+                    ->where('split_group_id', $transaction->split_group_id)
+                    ->where('id', '!=', $transaction->id)
+                    ->pluck('id')
+                    ->push($transaction->id)
+                    ->unique()
+                    ->values()
+                : ($transaction->type === TransactionType::Transfer
+                    ? collect([$transaction->id, $transaction->related_transaction_id])->filter()
+                    : collect([$transaction->id]));
+
+            SubscriptionOccurrence::query()->whereIn('transaction_id', $ids)->delete();
+            Transaction::query()->whereIn('id', $ids)->delete();
         });
 
         unset($this->transactions);
