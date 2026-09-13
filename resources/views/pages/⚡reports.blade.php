@@ -179,31 +179,38 @@ new #[Title('Reports')] class extends Component {
                 <div
                     x-data="{
                         tip: null,
+                        anchor: null,
                         box: null,
                         setTip: function (column) {
                             this.tip = column.querySelector('.trend-tip');
+                            this.anchor = column;
                             this.box = column.parentElement;
-                            this.$nextTick(() => this.align());
+                            requestAnimationFrame(() => this.align());
                         },
                         align: function () {
                             const el = this.tip;
-                            if (! el || el.offsetParent === null || ! this.box) {
+                            if (! el || ! this.anchor || ! this.box) {
                                 return;
                             }
+                            const col = this.anchor.getBoundingClientRect();
                             const box = this.box.getBoundingClientRect();
-                            const rect = el.getBoundingClientRect();
-                            const minLeft = box.left + 6;
-                            const maxLeft = box.right - rect.width - 6;
-                            let dx = 0;
-                            if (rect.left < minLeft) {
-                                dx = minLeft - rect.left;
-                            } else if (rect.right > box.right) {
-                                dx = maxLeft - rect.left;
+                            const width = el.offsetWidth;
+
+                            if (width === 0) {
+                                return;
                             }
-                            el.style.marginLeft = dx + 'px';
+
+                            const desiredCenter = Math.max(
+                                box.left + width / 2 + 6,
+                                Math.min(col.left + col.width / 2, box.right - width / 2 - 6),
+                            );
+                            const currentCenter = el.getBoundingClientRect().left + width / 2;
+
+                            el.style.marginLeft = (desiredCenter - currentCenter) + 'px';
                         },
                         clear: function () {
                             this.tip = null;
+                            this.anchor = null;
                             this.box = null;
                         },
                     }"
