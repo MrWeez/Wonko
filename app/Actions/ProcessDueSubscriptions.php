@@ -93,7 +93,7 @@ class ProcessDueSubscriptions
                                 $primaryTransaction = new Transaction;
                                 $primaryTransaction->forceFill([
                                     'user_id' => $subscription->user_id,
-                                    'account_id' => $method?->primary_account_id ?? $subscription->account_id,
+                                    'account_id' => $method->primary_account_id ?? $subscription->account_id,
                                     'category_id' => $subscription->category_id,
                                     'payment_method_id' => $method?->id,
                                     'type' => TransactionType::Expense,

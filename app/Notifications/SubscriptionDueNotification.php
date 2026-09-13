@@ -11,6 +11,8 @@ use App\Notifications\Channels\WebhookChannel;
 use Carbon\CarbonImmutable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use NotificationChannels\WebPush\WebPushChannel;
+use NotificationChannels\WebPush\WebPushMessage;
 
 class SubscriptionDueNotification extends Notification
 {
@@ -48,6 +50,10 @@ class SubscriptionDueNotification extends Notification
 
         if ($this->channelEnabled($notifiable, 'discord')) {
             $channels[] = DiscordChannel::class;
+        }
+
+        if ($this->channelEnabled($notifiable, 'browser')) {
+            $channels[] = WebPushChannel::class;
         }
 
         return $channels;
@@ -130,6 +136,17 @@ class SubscriptionDueNotification extends Notification
                 ],
             ]],
         ];
+    }
+
+    public function toWebPush(object $notifiable, object $notification): WebPushMessage
+    {
+        return (new WebPushMessage)
+            ->title('Subscription due: '.$this->subscription->name)
+            ->icon('/apple-touch-icon.png')
+            ->body($this->amount().' '.$this->currency().' · Due: '.$this->dueDate())
+            ->action('Open subscription', 'open_subscription')
+            ->data(['url' => route('subscriptions.index')])
+            ->options(['TTL' => 86400]);
     }
 
     private function channelEnabled(User $notifiable, string $channel): bool

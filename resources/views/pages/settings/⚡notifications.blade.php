@@ -1,9 +1,12 @@
 <?php
 
 use Flux\Flux;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Minishlink\WebPush\ContentEncoding;
 
 new #[Title('Notification settings')] class extends Component {
     public bool $database = true;
@@ -15,6 +18,8 @@ new #[Title('Notification settings')] class extends Component {
     public bool $discord = false;
 
     public bool $telegram = false;
+
+    public bool $browser = false;
 
     public string $webhookUrl = '';
 
@@ -39,12 +44,73 @@ new #[Title('Notification settings')] class extends Component {
         $this->webhook = $preferences['webhook'];
         $this->discord = $preferences['discord'];
         $this->telegram = $preferences['telegram'];
+        $this->browser = $preferences['browser'];
         $this->notificationDaysBefore = Auth::user()->notificationDaysBefore();
 
         $configurations = Auth::user()->notificationChannelConfigurations();
         $this->webhookUrl = $configurations['webhook']['url'] ?? '';
         $this->telegramChatId = (string) ($configurations['telegram']['chat_id'] ?? '');
         $this->telegramMessageThreadId = (string) ($configurations['telegram']['message_thread_id'] ?? '');
+    }
+
+    /**
+     * @return Collection<int, array{endpoint: string, label: string}>
+     */
+    #[Computed]
+    public function pushDevices(): Collection
+    {
+        return Auth::user()->pushSubscriptions
+            ->sortBy('id')
+            ->map(fn (App\Models\PushSubscription $subscription): array => [
+                'endpoint' => $subscription->endpoint,
+                'label' => $this->deviceLabel($subscription->endpoint),
+            ])
+            ->values();
+    }
+
+    private function deviceLabel(string $endpoint): string
+    {
+        $host = (string) (parse_url($endpoint, PHP_URL_HOST) ?: 'Unknown device');
+        $suffix = mb_substr($endpoint, -8);
+
+        return $host.' · …'.$suffix;
+    }
+
+    public function subscribeDevice(string $endpoint, string $key, string $token): void
+    {
+        $validated = validator(['endpoint' => $endpoint, 'key' => $key, 'token' => $token], [
+            'endpoint' => ['required', 'url', 'max:1024'],
+            'key' => ['required', 'string', 'max:512'],
+            'token' => ['required', 'string', 'max:512'],
+        ])->validate();
+
+        Auth::user()->updatePushSubscription(
+            $validated['endpoint'],
+            $validated['key'],
+            $validated['token'],
+            ContentEncoding::aes128gcm,
+        );
+
+        if (! $this->browser) {
+            Auth::user()->setNotificationPreferences(['browser' => true]);
+            $this->browser = true;
+        }
+
+        unset($this->pushDevices);
+
+        Flux::toast(variant: 'success', text: __('Browser notifications enabled on this device.'));
+    }
+
+    public function unsubscribeDevice(string $endpoint): void
+    {
+        abort_if(! str_starts_with($endpoint, 'https://'), 422);
+
+        $user = Auth::user();
+        $user->deletePushSubscription($endpoint);
+
+        unset($this->pushDevices);
+
+        Flux::toast(variant: 'success', text: __('This device was unsubscribed from browser notifications.'));
     }
 
     public function save(): void
@@ -76,6 +142,7 @@ new #[Title('Notification settings')] class extends Component {
             'webhook' => $this->webhook,
             'discord' => $this->discord,
             'telegram' => $this->telegram,
+            'browser' => $this->browser,
         ]);
         Auth::user()->setNotificationDaysBefore($this->notificationDaysBefore);
         Auth::user()->setNotificationChannelConfigurations([
@@ -159,7 +226,92 @@ new #[Title('Notification settings')] class extends Component {
                 </div>
             </div>
 
-            {{-- 3. Telegram --}}
+            {{-- 3. Browser push --}}
+            <div
+                class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"
+                x-data="pushBrowserDevices({
+                    vapidKey: @js(config('webpush.vapid.public_key')),
+                    endpoints: @js($this->pushDevices->pluck('endpoint')->values()),
+                })"
+            >
+                <div class="flex items-start justify-between">
+                    <div class="flex items-start gap-3">
+                        <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
+                            <flux:icon icon="bell" class="size-4 text-zinc-600 dark:text-zinc-400" />
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <flux:heading size="sm">{{ __('Browser Push') }}</flux:heading>
+                                @if ($browser)
+                                    <flux:badge size="sm" color="green">{{ __('Enabled') }}</flux:badge>
+                                @else
+                                    <flux:badge size="sm" color="zinc">{{ __('Off') }}</flux:badge>
+                                @endif
+                            </div>
+                            <flux:text size="xs" class="mt-1 text-zinc-500">{{ __('Real-time notifications on your phone or computer, even when the site is closed. Requires HTTPS.') }}</flux:text>
+                        </div>
+                    </div>
+                    <flux:switch wire:model="browser" />
+                </div>
+
+                @if ($browser)
+                    <div class="mt-5 border-t border-zinc-100 pt-5 dark:border-zinc-800">
+                        <flux:text size="xs" class="mb-3 font-medium uppercase tracking-wide text-zinc-500">{{ __('Devices') }}</flux:text>
+
+                        <template x-if="!supported">
+                            <flux:callout variant="warning" :heading="__('Unsupported browser')">
+                                {{ __('This browser does not support the Push API. Try a recent version of Chrome, Edge, Firefox, or Safari.') }}
+                            </flux:callout>
+                        </template>
+
+                        <template x-if="supported && permission === 'denied'">
+                            <flux:callout variant="danger" :heading="__('Permission blocked')">
+                                {{ __('Push permission is blocked in this browser. Allow it from the lock icon next to the address bar, then reload this page.') }}
+                            </flux:callout>
+                        </template>
+
+                        <div x-cloak x-show="supported && permission !== 'denied'">
+                            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+                                <div class="flex items-center gap-3">
+                                    <flux:icon icon="device-phone-mobile" class="size-4 text-zinc-600 dark:text-zinc-400" />
+                                    <div>
+                                        <flux:heading size="sm">{{ __('This device') }}</flux:heading>
+                                        <flux:text size="xs" class="text-zinc-500">
+                                            <template x-if="isSubscribed">{{ __('Receives browser notifications.') }}</template>
+                                            <template x-if="!isSubscribed && permission === 'granted'">{{ __('Permission granted but not registered yet. Click enable below.') }}</template>
+                                            <template x-if="!isSubscribed && permission === 'default'">{{ __('Allow push notifications to get alerts here.') }}</template>
+                                        </flux:text>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <flux:button x-cloak x-show="!isSubscribed" size="sm" variant="primary" x-on:click.prevent="enable()">
+                                        {{ __('Enable on this device') }}
+                                    </flux:button>
+                                    <flux:button x-cloak x-show="isSubscribed" size="sm" variant="danger" x-on:click.prevent="disable()">
+                                        {{ __('Disable on this device') }}
+                                    </flux:button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 space-y-2">
+                            @forelse ($this->pushDevices as $device)
+                                <div class="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-700">
+                                    <div class="flex items-center gap-3">
+                                        <flux:icon icon="device-phone-mobile" class="size-4 text-zinc-600 dark:text-zinc-400" />
+                                        <flux:text size="sm">{{ $device['label'] }}</flux:text>
+                                    </div>
+                                    <flux:button size="sm" variant="ghost" x-on:click.prevent="$wire.unsubscribeDevice(@js($device['endpoint']))">{{ __('Remove') }}</flux:button>
+                                </div>
+                            @empty
+                                <flux:text size="sm" class="text-zinc-500">{{ __('No devices registered yet.') }}</flux:text>
+                            @endforelse
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            {{-- 4. Telegram --}}
             <div class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <div class="flex items-start justify-between">
                     <div class="flex items-start gap-3">

@@ -84,7 +84,7 @@ class Transaction extends UserOwnedModel
     }
 
     /**
-     * @return Collection<int, Transaction>
+     * @return Collection<int, static>
      */
     public function splitSiblings(): Collection
     {
