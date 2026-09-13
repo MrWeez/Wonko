@@ -30,6 +30,9 @@
                     <flux:sidebar.item icon="arrow-path-rounded-square" :href="route('subscriptions.index')" :current="request()->routeIs('subscriptions.*')" wire:navigate>
                         {{ __('Subscriptions') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="chart-bar" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
+                        {{ __('Reports') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

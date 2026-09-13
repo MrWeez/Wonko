@@ -30,6 +30,7 @@ Route::middleware(array_filter([
     Route::livewire('transactions', 'pages::transactions')->name('transactions.index');
     Route::livewire('categories', 'pages::categories')->name('categories.index');
     Route::livewire('subscriptions', 'pages::subscriptions')->name('subscriptions.index');
+    Route::livewire('reports', 'pages::reports')->name('reports.index');
 });
 
 require __DIR__.'/settings.php';

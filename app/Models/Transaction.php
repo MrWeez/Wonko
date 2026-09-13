@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\TransactionType;
 use App\TransferDirection;
+use Carbon\CarbonInterface;
 use Database\Factories\TransactionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $amount
  * @property string|null $account_amount
  * @property string|null $split_group_id
+ * @property CarbonInterface $transaction_date
  */
 #[Fillable(['account_id', 'category_id', 'payment_method_id', 'related_transaction_id', 'split_group_id', 'type', 'transfer_direction', 'description', 'currency', 'amount', 'account_amount', 'transaction_date'])]
 class Transaction extends UserOwnedModel
