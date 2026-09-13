@@ -176,11 +176,11 @@ new #[Title('Reports')] class extends Component {
             @if (empty($this->report->timeSeries()))
                 <flux:text size="sm" class="mt-4 text-zinc-500">{{ __('No transactions in this period.') }}</flux:text>
             @else
-                <div class="mt-6 flex h-40 items-end gap-1">
+                <div class="mt-6 flex h-44 w-full items-end gap-1 overflow-x-auto pb-0.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600">
                     @foreach ($this->report->timeSeries() as $bucket)
                         @php($incomeTooltip = '+'.number_format((float) $bucket['income'], 2).' '.$this->currency)
                         @php($expenseTooltip = '−'.number_format((float) $bucket['expense'], 2).' '.$this->currency)
-                        <div class="group relative flex flex-1 flex-col items-center gap-1">
+                        <div class="group relative flex min-w-[40px] flex-1 flex-col items-center gap-1">
                             <div class="pointer-events-none absolute bottom-9 z-10 hidden whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
                                 <div class="font-medium">{{ $bucket['label'] }}</div>
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ __('Income') }}: {{ $incomeTooltip }}</div>
@@ -198,7 +198,7 @@ new #[Title('Reports')] class extends Component {
                                     style="height: {{ round(((float) $bucket['expense'] / $this->chartMax) * 100, 1) }}%"
                                 ></div>
                             </div>
-                            <span class="max-w-full truncate px-0.5 text-[10px] text-zinc-400">{{ $bucket['label'] }}</span>
+                            <div class="max-w-full overflow-x-auto whitespace-nowrap px-0.5 text-[10px] leading-3 text-zinc-400 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600">{{ $bucket['label'] }}</div>
                         </div>
                     @endforeach
                 </div>
