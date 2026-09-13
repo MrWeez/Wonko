@@ -41,7 +41,7 @@ class SsoController extends Controller
             ]);
 
             return redirect()->route('login')
-                ->withErrors(['email' => __('Unable to sign you in with :provider. Please try again.', ['provider' => ucfirst($provider)])]);
+                ->withErrors(['email' => __('Unable to sign you in with :provider. Please try again.', ['provider' => Sso::nameFor($provider)])]);
         }
 
         $email = Str::lower((string) $ssoUser->getEmail());

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Sso;
 use Illuminate\Support\Facades\Route;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\AbstractProvider;
@@ -158,4 +159,49 @@ test('sso callback route exists for wired-in providers', function () {
 
     expect(Route::has('sso.redirect'))->toBeTrue()
         ->and(Route::has('sso.callback'))->toBeTrue();
+});
+
+test('the generic provider uses its custom display name on the login page', function () {
+    config([
+        'sso.enabled' => true,
+        'sso.providers' => [
+            'generic' => ['driver' => 'oidc_generic', 'name' => 'My IdP'],
+        ],
+        'services.oidc_generic' => [
+            'client_id' => 'id',
+            'client_secret' => 'secret',
+            'redirect' => '/sso/generic/callback',
+        ],
+    ]);
+
+    expect(Sso::nameFor('generic'))->toBe('My IdP');
+
+    $this->get(route('login'))
+        ->assertOk()
+        ->assertSee('Continue with My IdP')
+        ->assertDontSee('Continue with Generic OIDC');
+});
+
+test('sso callback errors use the custom provider display name', function () {
+    config([
+        'sso.enabled' => true,
+        'sso.providers' => [
+            'generic' => ['driver' => 'oidc_generic', 'name' => 'My IdP'],
+        ],
+        'services.oidc_generic' => [
+            'client_id' => 'id',
+            'client_secret' => 'secret',
+            'redirect' => '/sso/generic/callback',
+        ],
+    ]);
+
+    $provider = Mockery::mock(AbstractProvider::class);
+    $provider->shouldReceive('user')->once()->andThrow(new RuntimeException('Provider down'));
+    Socialite::shouldReceive('driver')->with('oidc_generic')->andReturn($provider);
+
+    $this->get('/sso/generic/callback')
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors();
+
+    expect(session('errors')->get('email'))->toContain('Unable to sign you in with My IdP. Please try again.');
 });

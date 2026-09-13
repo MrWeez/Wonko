@@ -31,7 +31,7 @@ return [
         'github' => ['driver' => 'github', 'name' => 'GitHub'],
         'google' => ['driver' => 'google', 'name' => 'Google'],
         'discord' => ['driver' => 'discord', 'name' => 'Discord'],
-        'generic' => ['driver' => 'oidc_generic', 'name' => 'Generic OIDC'],
+        'generic' => ['driver' => 'oidc_generic', 'name' => env('SSO_GENERIC_NAME', 'Generic OIDC')],
     ],
 
 ];

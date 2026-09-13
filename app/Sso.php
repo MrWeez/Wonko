@@ -39,7 +39,7 @@ class Sso
     }
 
     /**
-     * Whether the given config key is currently available for SSO login.
+     * Whether the given config key is currently active for SSO login.
      */
     public static function isActive(string $key): bool
     {
@@ -60,6 +60,14 @@ class Sso
         }
 
         return is_string($entry) ? $entry : null;
+    }
+
+    /**
+     * The display name for a provider config key.
+     */
+    public static function nameFor(string $key): string
+    {
+        return self::providerName(config("sso.providers.{$key}")) ?? ucfirst($key);
     }
 
     /**
