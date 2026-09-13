@@ -47,6 +47,20 @@ async function currentSubscription() {
 }
 
 document.addEventListener('alpine:init', () => {
+    Alpine.store('savedFlash', {
+        sections: [],
+        timer: null,
+
+        flash(sections) {
+            this.sections = sections;
+            clearTimeout(this.timer);
+
+            this.timer = setTimeout(() => {
+                this.sections = [];
+            }, 1800);
+        },
+    });
+
     Alpine.data('pushBrowserDevices', ({ vapidKey, endpoints }) => ({
         supported: isPushSupported(),
         permission: isPushSupported() ? Notification.permission : 'unsupported',

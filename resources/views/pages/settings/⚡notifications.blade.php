@@ -51,8 +51,6 @@ new #[Title('Notification settings')] class extends Component {
      */
     public array $saved = [];
 
-    public bool $justSaved = false;
-
     public function mount(): void
     {
         $preferences = Auth::user()->notificationPreferences();
@@ -135,19 +133,37 @@ new #[Title('Notification settings')] class extends Component {
         };
     }
 
+    /**
+     * Sections whose settings differ from the last saved snapshot.
+     *
+     * @return list<string>
+     */
+    private function changedSections(): array
+    {
+        $sections = [];
+
+        if ($this->scheduleChanged()) {
+            $sections[] = 'schedule';
+        }
+
+        foreach (['database', 'email', 'browser', 'telegram', 'discord', 'webhook'] as $channel) {
+            if ($this->channelChanged($channel)) {
+                $sections[] = $channel;
+            }
+        }
+
+        return $sections;
+    }
+
     public function addReminder(): void
     {
         $this->notificationReminders[] = 1;
-
-        $this->justSaved = false;
     }
 
     public function removeReminder(int $index): void
     {
         unset($this->notificationReminders[$index]);
         $this->notificationReminders = array_values($this->notificationReminders);
-
-        $this->justSaved = false;
     }
 
     /**
@@ -237,7 +253,7 @@ new #[Title('Notification settings')] class extends Component {
             ? $this->telegramBotToken
             : ($configurations['telegram']['bot_token'] ?? null);
 
-Auth::user()->setNotificationPreferences([
+        Auth::user()->setNotificationPreferences([
             'database' => $this->database,
             'email' => $this->email,
             'webhook' => $this->webhook,
@@ -260,20 +276,14 @@ Auth::user()->setNotificationPreferences([
         ]);
 
         $hadUnsavedChanges = $this->hasUnsavedChanges();
+        $changedSections = $this->changedSections();
         $this->saved = $this->snapshot();
-        $this->justSaved = $hadUnsavedChanges;
+
+        if ($hadUnsavedChanges) {
+            $this->dispatch('notifications-saved', sections: $changedSections);
+        }
 
         Flux::toast(variant: 'success', text: __('Notification preferences saved.'));
-    }
-
-    /**
-     * Clear the "just saved" flash as soon as the user edits anything again.
-     */
-    public function updated(string $property): void
-    {
-        if ($property !== 'saved' && $property !== 'justSaved') {
-            $this->justSaved = false;
-        }
     }
 }; ?>
 
@@ -286,8 +296,8 @@ Auth::user()->setNotificationPreferences([
         <form
             wire:submit="save"
             class="my-6 w-full space-y-6"
-            x-data="{ savedFlash: {{ $this->justSaved ? 'true' : 'false' }} }"
-            x-init="if (savedFlash) { setTimeout(() => savedFlash = false, 1800) }"
+            x-data
+            x-init="$wire.$on('notifications-saved', (event) => $store.savedFlash.flash(event.sections))"
         >
 
             {{-- Delivery errors --}}
@@ -304,7 +314,7 @@ Auth::user()->setNotificationPreferences([
             @endif
 
             {{-- 1. Reminders & overdue --}}
-            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->scheduleChanged() ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="savedFlash ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
+            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition duration-700 ease-out dark:border-zinc-700 dark:bg-zinc-900 {{ $this->scheduleChanged() ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="$store.savedFlash.sections.includes('schedule') ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
                 <div class="flex items-center gap-3 border-b border-zinc-100 pb-4 dark:border-zinc-800">
                     <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
                         <flux:icon icon="clock" class="size-4 text-zinc-600 dark:text-zinc-400" />
@@ -355,7 +365,7 @@ Auth::user()->setNotificationPreferences([
             {{-- 2. Simple channels: In-App & Email side by side --}}
             <div class="grid gap-4 sm:grid-cols-2">
                 {{-- In-App --}}
-                <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('database') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="savedFlash ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
+                <div class="rounded-xl border border-zinc-200 bg-white p-5 transition duration-700 ease-out dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('database') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="$store.savedFlash.sections.includes('database') ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
                     <div class="flex items-start justify-between">
                         <div class="flex items-start gap-3">
                             <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
@@ -371,7 +381,7 @@ Auth::user()->setNotificationPreferences([
                 </div>
 
                 {{-- Email --}}
-                <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('email') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="savedFlash ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
+                <div class="rounded-xl border border-zinc-200 bg-white p-5 transition duration-700 ease-out dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('email') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="$store.savedFlash.sections.includes('email') ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
                     <div class="flex items-start justify-between">
                         <div class="flex items-start gap-3">
                             <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
@@ -389,7 +399,7 @@ Auth::user()->setNotificationPreferences([
 
             {{-- 3. Browser push --}}
             <div
-                class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('browser') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="savedFlash ? 'ring-2 ring-green-400 dark:ring-green-500' : ''"
+                class="rounded-xl border border-zinc-200 bg-white p-5 transition duration-700 ease-out dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('browser') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="$store.savedFlash.sections.includes('browser') ? 'ring-2 ring-green-400 dark:ring-green-500' : ''"
                 x-data="pushBrowserDevices({
                     vapidKey: @js(config('webpush.vapid.public_key')),
                     endpoints: @js($this->pushDevices->pluck('endpoint')->values()),
@@ -473,7 +483,7 @@ Auth::user()->setNotificationPreferences([
             </div>
 
             {{-- 4. Telegram --}}
-            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('telegram') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="savedFlash ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
+            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition duration-700 ease-out dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('telegram') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="$store.savedFlash.sections.includes('telegram') ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
                 <div class="flex items-start justify-between">
                     <div class="flex items-start gap-3">
                         <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
@@ -516,7 +526,7 @@ Auth::user()->setNotificationPreferences([
             </div>
 
             {{-- 4. Discord --}}
-            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('discord') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="savedFlash ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
+            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition duration-700 ease-out dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('discord') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="$store.savedFlash.sections.includes('discord') ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
                 <div class="flex items-start justify-between">
                     <div class="flex items-start gap-3">
                         <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
@@ -547,7 +557,7 @@ Auth::user()->setNotificationPreferences([
             </div>
 
             {{-- 5. Generic JSON Webhook --}}
-            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('webhook') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="savedFlash ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
+            <div class="rounded-xl border border-zinc-200 bg-white p-5 transition duration-700 ease-out dark:border-zinc-700 dark:bg-zinc-900 {{ $this->channelChanged('webhook') ? 'ring-1 ring-amber-400 dark:ring-amber-500' : '' }}" :class="$store.savedFlash.sections.includes('webhook') ? 'ring-2 ring-green-400 dark:ring-green-500' : ''">
                 <div class="flex items-start justify-between">
                     <div class="flex items-start gap-3">
                         <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
