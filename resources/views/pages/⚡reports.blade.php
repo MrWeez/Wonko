@@ -176,13 +176,45 @@ new #[Title('Reports')] class extends Component {
             @if (empty($this->report->timeSeries()))
                 <flux:text size="sm" class="mt-4 text-zinc-500">{{ __('No transactions in this period.') }}</flux:text>
             @else
-                <div class="mt-6 flex h-44 w-full items-end gap-1 overflow-x-auto pb-0.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600">
+                <div
+                    x-data="{
+                        tip: null,
+                        box: null,
+                        setTip: function (column) {
+                            this.tip = column.querySelector('.trend-tip');
+                            this.box = column.parentElement;
+                            this.$nextTick(() => this.align());
+                        },
+                        align: function () {
+                            const el = this.tip;
+                            if (! el || el.offsetParent === null || ! this.box) {
+                                return;
+                            }
+                            const box = this.box.getBoundingClientRect();
+                            const rect = el.getBoundingClientRect();
+                            const minLeft = box.left + 6;
+                            const maxLeft = box.right - rect.width - 6;
+                            let dx = 0;
+                            if (rect.left < minLeft) {
+                                dx = minLeft - rect.left;
+                            } else if (rect.right > box.right) {
+                                dx = maxLeft - rect.left;
+                            }
+                            el.style.marginLeft = dx + 'px';
+                        },
+                        clear: function () {
+                            this.tip = null;
+                            this.box = null;
+                        },
+                    }"
+                    class="mt-6 flex h-44 w-full items-end gap-1 overflow-x-auto pb-0.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600"
+                    @scroll.passive="align()"
+                >
                     @foreach ($this->report->timeSeries() as $bucket)
                         @php($incomeTooltip = '+'.number_format((float) $bucket['income'], 2).' '.$this->currency)
                         @php($expenseTooltip = '−'.number_format((float) $bucket['expense'], 2).' '.$this->currency)
-                        @php($tipAlign = $loop->index < 2 ? 'left-0' : ($loop->remaining <= 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'))
-                        <div class="group relative flex min-w-[40px] flex-1 flex-col items-center gap-1">
-                            <div class="pointer-events-none absolute bottom-9 z-10 hidden whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 {{ $tipAlign }}">
+                        <div class="group relative flex min-w-[40px] flex-1 flex-col items-center gap-1" @mouseenter="setTip($event.currentTarget)" @mouseleave="clear()">
+                            <div class="trend-tip pointer-events-none absolute bottom-9 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
                                 <div class="font-medium">{{ $bucket['label'] }}</div>
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ __('Income') }}: {{ $incomeTooltip }}</div>
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ __('Expense') }}: {{ $expenseTooltip }}</div>
