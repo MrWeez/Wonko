@@ -180,8 +180,9 @@ new #[Title('Reports')] class extends Component {
                     @foreach ($this->report->timeSeries() as $bucket)
                         @php($incomeTooltip = '+'.number_format((float) $bucket['income'], 2).' '.$this->currency)
                         @php($expenseTooltip = '−'.number_format((float) $bucket['expense'], 2).' '.$this->currency)
+                        @php($tipAlign = $loop->index < 2 ? 'left-0' : ($loop->remaining <= 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'))
                         <div class="group relative flex min-w-[40px] flex-1 flex-col items-center gap-1">
-                            <div class="pointer-events-none absolute bottom-9 z-10 hidden whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
+                            <div class="pointer-events-none absolute bottom-9 z-10 hidden whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-zinc-700 shadow-md group-hover:block dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 {{ $tipAlign }}">
                                 <div class="font-medium">{{ $bucket['label'] }}</div>
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ __('Income') }}: {{ $incomeTooltip }}</div>
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ __('Expense') }}: {{ $expenseTooltip }}</div>
